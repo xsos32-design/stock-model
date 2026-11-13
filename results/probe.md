@@ -1,6 +1,6 @@
-# 資料探測結果 2026-11-13 03:52 UTC
+# 資料探測結果 2026-11-13 04:13 UTC
 
-- 帳號等級 level：1　本小時已用：0 / 600
+- 帳號等級 level：2　本小時已用：22 / 1600
 - token 是否有載入：是
 
 ## FinMind
@@ -11,18 +11,18 @@
 | TaiwanStockTradingDate | 全市場 | 2026-10-24 | 200 | 289 | 2026-10-27 | 2027-12-30 | success | date |
 | TaiwanStockPrice | 2330 | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,Trading_Volume,Trading_money,open,max,min,close,spread,Trading_turnover |
 | TaiwanStockPrice | TAIEX | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,Trading_Volume,Trading_money,open,max,min,close,spread,Trading_turnover |
-| TaiwanStockPrice | 全市場 | 2026-11-13 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
-| TaiwanStockPriceAdj | 2330 | 2021-11-12 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
+| TaiwanStockPrice | 全市場 | 2026-11-13 | 200 | 0 |  |  | success |  |
+| TaiwanStockPriceAdj | 2330 | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,Trading_Volume,Trading_money,open,max,min,close,spread,Trading_turnover |
 | TaiwanStockPER | 2330 | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,dividend_yield,PER,PBR |
 | TaiwanStockDayTrading | 2330 | 2026-10-24 | 200 | 14 | 2026-10-27 | 2026-11-13 | success | stock_id,date,BuyAfterSale,Volume,BuyAmount,SellAmount |
 | TaiwanStockTotalReturnIndex | TAIEX | 2026-10-24 | 200 | 13 | 2026-10-27 | 2026-11-12 | success | price,stock_id,date |
 | TaiwanStockMarginPurchaseShortSale | 2330 | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,MarginPurchaseBuy,MarginPurchaseCashRepayment,MarginPurchaseLimit,MarginPurchaseSell,MarginPurchaseTodayBalance,MarginPurchaseYesterdayBalance,Note,OffsetLoanAndShort,ShortSaleBuy,ShortSaleCashRepayment |
 | TaiwanStockTotalMarginPurchaseShortSale | 全市場 | 2026-10-24 | 200 | 39 | 2026-10-27 | 2026-11-12 | success | TodayBalance,YesBalance,buy,date,name,Return,sell |
 | TaiwanStockInstitutionalInvestorsBuySell | 2330 | 2021-11-12 | 200 | 6060 | 2021-11-12 | 2026-11-12 | success | date,stock_id,buy,name,sell |
-| TaiwanStockInstitutionalInvestorsBuySell | 全市場 | 2026-11-13 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
+| TaiwanStockInstitutionalInvestorsBuySell | 全市場 | 2026-11-13 | 200 | 0 |  |  | success |  |
 | TaiwanStockTotalInstitutionalInvestors | 全市場 | 2026-10-24 | 200 | 78 | 2026-10-27 | 2026-11-12 | success | buy,date,name,sell |
 | TaiwanStockShareholding | 2330 | 2021-11-12 | 200 | 1212 | 2021-11-12 | 2026-11-12 | success | date,stock_id,stock_name,InternationalCode,ForeignInvestmentRemainingShares,ForeignInvestmentShares,ForeignInvestmentRemainRatio,ForeignInvestmentSharesRatio,ForeignInvestmentUpperLimitRatio,ChineseInvestmentUpperLimitRatio,NumberOfSharesIssued,RecentlyDeclareDate |
-| TaiwanStockHoldingSharesPer | 2330 | 2026-10-24 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
+| TaiwanStockHoldingSharesPer | 2330 | 2026-10-24 | 200 | 34 | 2026-10-30 | 2026-11-06 | success | date,stock_id,HoldingSharesLevel,people,percent,unit |
 | TaiwanStockSecuritiesLending | 2330 | 2026-10-24 | 200 | 178 | 2026-10-27 | 2026-11-12 | success | date,stock_id,transaction_type,volume,fee_rate,close,original_return_date,original_lending_period |
 | TaiwanStockMonthRevenue | 2330 | 2021-11-12 | 200 | 60 | 2021-12-01 | 2026-11-01 | success | date,stock_id,country,revenue,revenue_month,revenue_year,create_time |
 | TaiwanStockFinancialStatements | 2330 | 2021-11-12 | 200 | 323 | 2021-12-31 | 2026-06-30 | success | date,stock_id,type,value,origin_name |
@@ -30,12 +30,12 @@
 | TaiwanStockCashFlowsStatement | 2330 | 2021-11-12 | 200 | 553 | 2021-12-31 | 2026-06-30 | success | date,stock_id,type,value,origin_name |
 | TaiwanStockDividend | 2330 | 2021-11-12 | 200 | 20 | 2021-12-22 | 2026-09-22 | success | date,stock_id,year,StockEarningsDistribution,StockStatutorySurplus,StockExDividendTradingDate,TotalEmployeeStockDividend,TotalEmployeeStockDividendAmount,RatioOfEmployeeStockDividendOfTotal,RatioOfEmployeeStockDividend,CashEarningsDistribution,CashStatutorySurplus |
 | TaiwanStockDividendResult | 2330 | 2021-11-12 | 200 | 20 | 2021-12-16 | 2026-09-16 | success | date,stock_id,before_price,after_price,stock_and_cache_dividend,stock_or_cache_dividend,max_price,min_price,open_price,reference_price |
-| TaiwanStockCapitalReductionReferencePrice | 全市場 | 2021-11-12 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
+| TaiwanStockCapitalReductionReferencePrice | 全市場 | 2021-11-12 | 200 | 198 | 2021-11-22 | 2026-11-09 | success | date,stock_id,ClosingPriceonTheLastTradingDay,PostReductionReferencePrice,LimitUp,LimitDown,OpeningReferencePrice,ExrightReferencePrice,ReasonforCapitalReduction |
 | TaiwanStockSplitPrice | 全市場 | 2021-11-12 | 200 | 32 | 2022-07-13 | 2026-09-07 | success | date,stock_id,type,before_price,after_price,max_price,min_price,open_price |
 | TaiwanStockDelisting | 全市場 | 2021-11-12 | 200 | 80 | 2021-12-13 | 2026-10-01 | success | date,stock_id,stock_name |
-| TaiwanStockDispositionSecuritiesPeriod | 全市場 | 2026-10-24 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
-| TaiwanStockSuspended | 全市場 | 2026-10-24 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
-| TaiwanStockMarketValue | 2330 | 2026-10-24 | 400 | 0 |  |  | Your level is register. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sp |  |
+| TaiwanStockDispositionSecuritiesPeriod | 全市場 | 2026-10-24 | 200 | 30 | 2026-10-27 | 2026-11-11 | success | date,stock_id,stock_name,disposition_cnt,condition,measure,period_start,period_end |
+| TaiwanStockSuspended | 全市場 | 2026-10-24 | 200 | 4 | 2026-10-30 | 2026-11-13 | success | date,stock_id,suspension_time,resumption_date,resumption_time |
+| TaiwanStockMarketValue | 2330 | 2026-10-24 | 200 | 13 | 2026-10-27 | 2026-11-12 | success | date,stock_id,market_value |
 | TaiwanStockNews | 2330 | 2026-11-13 | 200 | 8 | 2026-11-13 00:02:29 | 2026-11-13 02:17:25 | success | date,stock_id,link,source,title |
 
 ## 證交所 / 櫃買 OpenAPI

@@ -1,0 +1,41 @@
+name: backfill-factors
+on:
+  workflow_dispatch:
+    inputs:
+      names:
+        description: "space-separated: disposition revenue fin inst holding margin foreign per"
+        default: "disposition revenue fin inst holding margin foreign per"
+permissions:
+  contents: write
+concurrency: backfill
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        name: [disposition, revenue, fin, inst, holding, margin, foreign, per]
+    steps:
+      - uses: actions/checkout@v4
+        if: contains(github.event.inputs.names, matrix.name)
+      - uses: actions/setup-python@v5
+        if: contains(github.event.inputs.names, matrix.name)
+        with:
+          python-version: "3.12"
+      - if: contains(github.event.inputs.names, matrix.name)
+        run: pip install pandas pyarrow
+      - name: Fetch ${{ matrix.name }}
+        if: contains(github.event.inputs.names, matrix.name)
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python scripts/fetch_factors.py ${{ matrix.name }}
+      - name: Commit
+        if: contains(github.event.inputs.names, matrix.name)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/factors/
+          git commit -m "data: factor ${{ matrix.name }}" || echo "no changes"
+          for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done

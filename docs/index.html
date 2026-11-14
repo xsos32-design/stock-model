@@ -61,6 +61,7 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
     <div><div class="t">大盤</div><div class="v" id="mkt">—</div></div>
     <div><div class="t">昨晚美股（費半）</div><div class="v" id="us">—</div></div>
   </div>
+  <div class="card" style="margin-top:12px" id="alloc"></div>
   <div class="card" style="margin-top:12px;padding:12px"><div class="mut">加權指數（藍）與 60 日均線（橘），在橘線上面＝安全</div><div id="tchart"></div></div>
   <div class="mut" id="asof" style="margin:8px 4px 12px"></div>
   <div id="picks"></div>
@@ -95,8 +96,14 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
       <li><b>買推薦前幾名</b>：每檔約 5 萬，最多同時抱 5～10 檔。</li>
       <li><b>收盤前買</b>：13:25 到 13:30 之間下單，用當天收盤價成交。</li>
       <li><b>抱 20 個交易日</b>（大約 1 個月）就賣，不用每天盯盤。</li>
-      <li><b>中間跌了也先別慌</b>：回測顯示太早停損反而賺得少。</li>
+      <li><b>跌 10% 就停損</b>：買進後跌到買價的 9 成就賣（可以先掛好停損單）。小跌不要急著賣。</li>
+      <li><b>資金分三份</b>：個股 30%、0050 49%、現金 21%。大盤跌破 60 日線時，0050 賣掉改現金。</li>
     </ol></div>
+  <div class="card"><h2>12 年回測（2015~2026，含 2018、2020、2022 大跌）</h2>
+    <div class="check"><span>本站配置（個股＋0050＋現金）</span><b>年化 +16.9%，最大虧損 −13.9%</b></div>
+    <div class="check"><span>0050 全押</span><b>年化 +22.2%，最大虧損 −34.0%</b></div>
+    <div class="check"><span>0050 一半＋現金一半</span><b>年化 +11.1%，最大虧損 −18.4%</b></div>
+    <div class="mut" style="margin-top:6px">想要最大虧損控制在 15% 內，本站配置的報酬比單純「一半 0050 一半現金」高。若能承受 −34% 的下跌，0050 全押長期報酬最高。</div></div>
   <div class="card"><h2>為什麼這樣做？</h2>
     <div>用 5 年、2,000 多檔股票的歷史資料測過：</div>
     <div class="check"><span>隨便買、抱 5 天</span><b class="dn">平均賠 0.6%</b></div>
@@ -154,6 +161,11 @@ function renderToday(){
   $('#light').innerHTML=T.can_enter
     ?`<div class="light go"><div class="big">今天可以買</div><div class="why">從下面推薦挑前幾名，收盤前買進</div></div>`
     :`<div class="light stop"><div class="big">今天先不要買</div><div class="why">${why.join('、')}。<br>手上的股票照原計畫抱著就好。</div></div>`;
+  $('#alloc').innerHTML=`<h2>資金怎麼放（控制最大虧損約 15% 內）</h2>
+   <div class="check"><span>個股（推薦名單，每檔 5 萬，最多 10 檔）</span><b>${T.can_enter?'30%　可買':'今天不買新股'}</b></div>
+   <div class="check"><span>0050</span><b>${T.mkt_up?'49%　持有':'0%　賣出改現金'}</b></div>
+   <div class="check"><span>現金</span><b>${T.mkt_up?'21%':'其餘全部'}</b></div>
+   <div class="mut" style="margin-top:6px">例：總資金 170 萬 → 個股 50 萬（10 檔×5 萬）、0050 約 83 萬、現金約 37 萬</div>`;
   const t=T.taiex, gap=t.close/t.ma60-1;
   $('#mkt').innerHTML=`<span class="${T.mkt_up?'up':'dn'}">${T.mkt_up?'安全':'偏弱'}</span> <span class="mut">${pct(gap)}</span>`;
   const sox=(T.us||{})['費半SOX'];
@@ -187,6 +199,7 @@ function renderMine(){
     return `<div class="card"><div class="pick"><div><span class="name">${c.name||h.id}</span><span class="code">${h.id}</span><div class="mut">${h.px} → ${now??'—'}・${lots(h.sh)}</div></div>
     <div class="pl ${cls(net)}">${money(net)}</div></div>
     <div class="bar"><i style="width:${d/20*100}%"></i></div>
+    ${now&&now<=h.px*0.9?'<div class="warn">已跌超過 10%：依規則停損賣出</div>':''}
     <div class="pick"><span class="mut">${left>0?`還要抱 ${left} 天（約 ${addBD(h.dt,20)}）`:'<b class="up">已滿 20 天，今天收盤前賣出</b>'}</span><button class="btn sm ghost" onclick="delHold(${i})">刪除</button></div>
     <button class="btn ghost" onclick="toggleChart(this,'${h.id}')">看走勢圖</button><div></div></div>`}).join('')
     ||'<div class="card mut">還沒有股票。在「今天」按「我買了」就會出現在這裡。</div>';

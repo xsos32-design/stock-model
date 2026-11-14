@@ -97,10 +97,10 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
       <li><b>收盤前買</b>：13:25 到 13:30 之間下單，用當天收盤價成交。</li>
       <li><b>抱 20 個交易日</b>（大約 1 個月）就賣，不用每天盯盤。</li>
       <li><b>跌 10% 就停損</b>：買進後跌到買價的 9 成就賣（可以先掛好停損單）。小跌不要急著賣。</li>
-      <li><b>資金分三份</b>：個股 30%、0050 49%、現金 21%。大盤跌破 60 日線時，0050 賣掉改現金。</li>
+      <li><b>資金分三份</b>：個股 30%、0050 49%、現金 21%。大盤跌破 60 日線、或期貨大戶明顯偏空時，0050 賣掉改現金（網站會提醒）。</li>
     </ol></div>
-  <div class="card"><h2>12 年回測（2015~2026，含 2018、2020、2022 大跌）</h2>
-    <div class="check"><span>本站配置（個股＋0050＋現金）</span><b>年化 +16.9%，最大虧損 −13.9%</b></div>
+  <div class="card"><h2>11 年回測（2015~2026，含 2018、2020、2022 大跌，已扣手續費與稅）</h2>
+    <div class="check"><span>本站配置（個股＋0050＋現金）</span><b>年化 +15.3%，最大虧損 −12.7%</b></div>
     <div class="check"><span>0050 全押</span><b>年化 +22.2%，最大虧損 −34.0%</b></div>
     <div class="check"><span>0050 一半＋現金一半</span><b>年化 +11.1%，最大虧損 −18.4%</b></div>
     <div class="mut" style="margin-top:6px">想要最大虧損控制在 15% 內，本站配置的報酬比單純「一半 0050 一半現金」高。若能承受 −34% 的下跌，0050 全押長期報酬最高。</div></div>
@@ -161,10 +161,11 @@ function renderToday(){
   $('#light').innerHTML=T.can_enter
     ?`<div class="light go"><div class="big">今天可以買</div><div class="why">從下面推薦挑前幾名，收盤前買進</div></div>`
     :`<div class="light stop"><div class="big">今天先不要買</div><div class="why">${why.join('、')}。<br>手上的股票照原計畫抱著就好。</div></div>`;
+  const H50=(T.etf_hold===undefined)?T.mkt_up:T.etf_hold;
   $('#alloc').innerHTML=`<h2>資金怎麼放（控制最大虧損約 15% 內）</h2>
    <div class="check"><span>個股（推薦名單，每檔 5 萬，最多 10 檔）</span><b>${T.can_enter?'30%　可買':'今天不買新股'}</b></div>
-   <div class="check"><span>0050</span><b>${T.mkt_up?'49%　持有':'0%　賣出改現金'}</b></div>
-   <div class="check"><span>現金</span><b>${T.mkt_up?'21%':'其餘全部'}</b></div>
+   <div class="check"><span>0050</span><b>${H50?'49%　持有':'0%　賣出改現金'}</b></div>
+   <div class="check"><span>現金</span><b>${H50?'21%':'其餘全部'}</b></div>
    <div class="mut" style="margin-top:6px">例：總資金 170 萬 → 個股 50 萬（10 檔×5 萬）、0050 約 83 萬、現金約 37 萬</div>`;
   const t=T.taiex, gap=t.close/t.ma60-1;
   $('#mkt').innerHTML=`<span class="${T.mkt_up?'up':'dn'}">${T.mkt_up?'安全':'偏弱'}</span> <span class="mut">${pct(gap)}</span>`;
@@ -210,7 +211,7 @@ function lookup(){
   const q=$('#q').value.trim();if(!q)return;const c=S.find(x=>x.id===q)||S.find(x=>x.name&&x.name.includes(q));
   if(!c){$('#qr').innerHTML='<div class="card mut">找不到（只有上市櫃普通股）</div>';return}
   const k=c.checks, rows=[
-    ['大盤夠強',T.mkt_up],['昨晚美股沒大跌',!T.gate.length],['接近一年新高',k['接近一年新高(≥98%)']],
+    ['大盤夠強',T.mkt_up],['昨晚美股、期貨大戶沒偏空',!T.gate.length],['接近一年新高',k['接近一年新高(≥98%)']],
     ['成交量夠大',k['流動性(20日均成交值≥2千萬)']],['不是處置股',k['非處置股']],['今天沒漲停（買得到）',k['收盤未漲停(買得到)']],['股價 10 元以上',k['股價≥10元']]];
   const ok=rows.every(r=>r[1]);
   $('#qr').innerHTML=`<div class="light ${ok?'go':'stop'}"><div class="big">${ok?'可以買':'現在不建議買'}</div><div class="why">${c.name} ${c.id}・收盤 ${c.close}・<span class="stars" style="color:#fff">${stars(c.score)}</span></div></div>

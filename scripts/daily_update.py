@@ -144,6 +144,21 @@ gate_reasons = []
 if us.get("費半SOX", {}).get("chg", 0) <= -0.03: gate_reasons.append("前一晚費半跌 3% 以上")
 if us.get("台積電ADR", {}).get("chg", 0) <= -0.02: gate_reasons.append("前一晚台積電 ADR 跌 2% 以上")
 
+# ---------------- 十大特定法人台指期淨部位 (backtest: avoid when in lowest 20% of past 250 days) ----------------
+big = dict(ok=False)
+q = urllib.parse.urlencode({"dataset": "TaiwanFuturesOpenInterestLargeTraders", "data_id": "TX",
+                            "start_date": (dt.date.today() - dt.timedelta(days=420)).isoformat()})
+j = get("https://api.finmindtrade.com/api/v4/data?" + q, {**UA, "Authorization": f"Bearer {TOKEN}"}) or {}
+d = pd.DataFrame(j.get("data") or [])
+if len(d):
+    d = d[d.contract_type == "all"].drop_duplicates("date").sort_values("date")
+    net = (d.buy_top10_specific_open_interest - d.sell_top10_specific_open_interest).astype(float).to_numpy()
+    if len(net) >= 120:
+        w = net[-250:]; pct = float((w[:-1] < w[-1]).mean())
+        big = dict(ok=True, date=d.date.iloc[-1], net=int(net[-1]), pct=round(pct, 3), low=pct < 0.2)
+etf_gate = bool(big.get("low"))
+if etf_gate: gate_reasons.append("大型法人台指期偏空（過去一年最低 20%）")
+
 # ---------------- signals ----------------
 px = px.sort_values(["stock_id", "date"]).reset_index(drop=True)
 g = px.groupby("stock_id")
@@ -214,7 +229,7 @@ exit_est = (pd.Timestamp(T) + pd.offsets.BDay(20)).strftime("%Y-%m-%d")
 today = dict(date=T.strftime("%Y-%m-%d"), generated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
              taiex=dict(close=round(float(tx.iloc[-1]), 2), ma60=round(float(ma60.iloc[-1]), 2), chg=round(float(tx.iloc[-1] / tx.iloc[-2] - 1), 4),
                         series=[[d.strftime("%Y-%m-%d"), round(float(c), 2), None if m != m else round(float(m), 2)] for d, c, m in zip(tx.index[-120:], tx.values[-120:], ma60.values[-120:])]),
-             mkt_up=mkt_up, us=us, gate=gate_reasons, can_enter=mkt_up and not gate_reasons,
+             mkt_up=mkt_up, us=us, big=big, gate=gate_reasons, can_enter=mkt_up and not gate_reasons, etf_hold=mkt_up and not etf_gate,
              exit_est=exit_est, n_cand=len(cand), candidates=clean(cand.to_dict("records")),
              disposed=[{"id": k, "name": name_of.get(k, ""), "info": v} for k, v in disposed.items() if re.fullmatch(r"[1-9]\d{3}", str(k))])
 json.dump(today, open(f"{DOCS}/today.json", "w"), ensure_ascii=False, default=str)

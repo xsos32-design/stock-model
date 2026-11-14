@@ -1,0 +1,130 @@
+{
+ "TaiwanFuturesInstitutionalInvestors_TX": {
+  "rows": 6168,
+  "msg": [
+   "success"
+  ],
+  "first": "2018-06-05",
+  "last": "2026-11-13"
+ },
+ "TaiwanOptionInstitutionalInvestors_TXO": {
+  "rows": 12336,
+  "msg": [
+   "success"
+  ],
+  "first": "2018-06-05",
+  "last": "2026-11-13"
+ },
+ "TaiwanFuturesDaily_TX": {
+  "rows": 65021,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanFuturesOpenInterestLargeTraders_TX": {
+  "rows": 8338,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanStockTotalMarginPurchaseShortSale": {
+  "rows": 8802,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanStockTotalInstitutionalInvestors": {
+  "rows": 16816,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanTotalExceptMarginPurchaseShortSale": {
+  "rows": 0,
+  "msg": [
+   "HTTP 422 {\"detail\":[{\"type\":\"enum\",\"loc\":[\"query\",\"dataset\"],\"msg\":\"Input should be 'CnnFearGreedIndex', 'CrudeOilPrices', 'EuropeStockInfo', 'EuropeStockPrice"
+  ],
+  "first": null,
+  "last": null
+ },
+ "TaiwanStockMarginMaintenance": {
+  "rows": 0,
+  "msg": [
+   "HTTP 400 {\"msg\":\"Your level is backer. Please update your user level. Detail information:https://finmindtrade.com/analysis/#/Sponsor/sponsor\",\"status\":400,\"tok"
+  ],
+  "first": null,
+  "last": null
+ },
+ "TaiwanExchangeRate_USD": {
+  "rows": 2974,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "CnnFearGreedIndex": {
+  "rows": 3063,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanBusinessIndicator": {
+  "rows": 143,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-01",
+  "last": "2026-09-01"
+ },
+ "GovernmentBondsYield_United States 10-Year": {
+  "rows": 3005,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-12"
+ },
+ "CrudeOilPrices_WTI": {
+  "rows": 3016,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-11"
+ },
+ "TaiwanOptionDaily_TXO": {
+  "rows": 4293368,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanStockPrice_TAIEX": {
+  "rows": 2934,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ },
+ "TaiwanStockPrice_TPEx": {
+  "rows": 2934,
+  "msg": [
+   "success"
+  ],
+  "first": "2014-11-03",
+  "last": "2026-11-13"
+ }
+}

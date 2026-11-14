@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>台股月進月出 · 回測驗證選股</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#262b36;--fg:#e8eaf0;--mut:#9aa3b2;--up:#e5484d;--dn:#30a46c;--acc:#3e7bfa;--warn:#f5a524}
+@media (prefers-color-scheme:light){:root{--bg:#f5f6f8;--card:#fff;--line:#e3e6eb;--fg:#15171c;--mut:#5d6573}}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--fg);font-size:15px;line-height:1.5}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px}.top h1{font-size:17px;margin:0}.top small{color:var(--mut)}
+nav{display:flex;overflow-x:auto;gap:4px;padding:0 10px 8px}nav button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:18px;padding:6px 14px;font-size:14px}
+nav button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+main{max-width:980px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 10px}.mut{color:var(--mut);font-size:13px}
+.status{border-radius:12px;padding:16px;margin-bottom:12px;color:#fff}.status.go{background:#1f7a4d}.status.stop{background:#a8323a}
+.status b{font-size:20px;display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.kpi{background:var(--bg);border-radius:10px;padding:10px}.kpi .v{font-size:20px;font-weight:600}.kpi .l{color:var(--mut);font-size:12px}
+.up{color:var(--up)}.dn{color:var(--dn)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:500;font-size:12px}
+.tw{overflow-x:auto}
+.dots span{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:2px;background:var(--line)}.dots span.y{background:var(--acc)}
+.pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:12px;background:var(--line);margin:2px 2px 0 0}.pill.y{background:rgba(62,123,250,.2);color:var(--acc)}.pill.n{opacity:.6}
+input,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:15px}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:14px}.btn.s{padding:4px 10px;font-size:13px}.btn.g{background:var(--line);color:var(--fg)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.sec{display:none}.sec.on{display:block}
+.warn{border-left:3px solid var(--warn);padding:8px 10px;background:rgba(245,165,36,.08);border-radius:6px;font-size:13px;margin:8px 0}
+svg text{fill:var(--mut);font-size:10px}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<header>
+ <div class="top"><div><h1>台股月進月出選股</h1><small id="asof">載入中…</small></div><small id="gen"></small></div>
+ <nav id="nav">
+  <button data-s="home" class="on">今日總覽</button><button data-s="cand">候選清單</button><button data-s="look">個股查詢</button>
+  <button data-s="hold">我的持股</button><button data-s="track">實際戰績</button><button data-s="rule">規則與回測</button>
+ </nav>
+</header>
+<main>
+<section id="home" class="sec on">
+ <div id="status"></div>
+ <div class="card"><h2>加權指數 vs 60 日線</h2><div id="chart"></div><div class="grid" id="tkpi"></div></div>
+ <div class="card"><h2>美股收盤（台股下一個交易日開盤前已知）</h2><div class="tw"><table id="ust"></table></div>
+  <div class="mut">回測：前一晚費半跌超過 3% 時，台股當天收紅機率只有 11%；隔天才進場的新部位 20 日平均報酬僅 +0.13%（全部平均 +2.41%）。</div></div>
+ <div class="card"><h2>處置股（不列入候選）</h2><div id="disp" class="mut"></div></div>
+</section>
+
+<section id="cand" class="sec">
+ <div class="card">
+  <div class="row"><label>最低分數 <select id="minScore"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select></label>
+   <label>市場 <select id="mktF"><option value="">全部</option><option value="twse">上市</option><option value="tpex">上櫃</option></select></label>
+   <span class="mut" id="ccount"></span></div>
+  <div class="mut">條件：大盤在 60 日線上＋收盤 ≥ 一年最高價 98%＋20 日均成交值 ≥ 2,000 萬＋非處置＋收盤未漲停。<br>分數＝下列 5 項符合數：月營收年增>20%、近 3 月營收年增>15%、營收成長加速、毛利率較去年同季提升、120 日漲幅>30%。<br>操作：當天收盤（13:25–13:30 收盤集合競價）買進，持有 20 個交易日，預估出場日 <b id="exitd"></b>。</div>
+ </div>
+ <div id="clist"></div>
+</section>
+
+<section id="look" class="sec">
+ <div class="card"><div class="row"><input id="q" placeholder="輸入代號或名稱，例如 2330" style="flex:1"><button class="btn" id="qb">查詢</button></div><div id="qr"></div></div>
+</section>
+
+<section id="hold" class="sec">
+ <div class="card"><h2>新增持股</h2>
+  <div class="row"><input id="hId" placeholder="代號" size="6"><input id="hPx" placeholder="買進價" size="7" inputmode="decimal"><input id="hSh" placeholder="股數" size="7" inputmode="numeric"><input id="hDt" type="date"><button class="btn" id="hAdd">加入</button></div>
+  <div class="mut">損益已扣富邦手續費（買賣各 0.1425%，最低 20 元）與證交稅 0.3%。資料只存在這支手機／瀏覽器。</div></div>
+ <div id="hlist"></div>
+</section>
+
+<section id="track" class="sec"><div class="card"><h2>網站上線後的實際紀錄（每天前 10 名候選，持有 20 個交易日）</h2><div id="tsum"></div><div class="tw"><table id="tt"></table></div></div></section>
+
+<section id="rule" class="sec">
+ <div class="card"><h2>操作規則（全部來自 5 年回測，扣成本後）</h2>
+  <ol>
+   <li><b>大盤濾網</b>：加權指數收在 60 日線之上才開新倉。（不看大盤：最大回落約 −40%；加濾網：約 −25%）</li>
+   <li><b>美股濾網</b>：前一晚費半跌 ≥3% 或台積電 ADR 跌 ≥2%，當天不開新倉。（這些日子進場的 20 日平均只有 +0.13% / +0.69%）</li>
+   <li><b>選股</b>：收盤 ≥ 一年最高價 98%，排除處置股與流動性差的股票。</li>
+   <li><b>排序</b>：同一天候選太多時，優先選分數高者（營收成長、毛利率、動能）。</li>
+   <li><b>買點</b>：當天收盤買進。等隔天開盤再買，平均少賺約 0.3%。</li>
+   <li><b>出場</b>：持有 20 個交易日。中途不因小震盪出場；跌破 20 日線、跌破 10 日線等出場法回測都會降低報酬。</li>
+   <li><b>分散</b>：同時持有 5～10 檔，資金平均分配。</li>
+  </ol>
+ </div>
+ <div class="card"><h2>回測重點數字（2021-11 ~ 2026-11，驗證期 = 2024-11-13 之後）</h2><div class="tw"><table>
+  <tr><th>策略</th><th>驗證期每筆平均</th><th>驗證期勝率</th></tr>
+  <tr><td>隨機挑股持有 5 日（對照）</td><td>−0.63%</td><td>40.1%</td></tr>
+  <tr><td>你原本的週進週出（站上 5 日線）</td><td>−0.45%</td><td>21.6%</td></tr>
+  <tr><td>接近一年新高＋持有 20 日</td><td>+2.02%</td><td>48.2%</td></tr>
+  <tr><td>＋大盤在 60 日線上</td><td>+2.69%</td><td>50.4%</td></tr>
+  <tr><td>＋近 3 月營收年增 >15%</td><td>+3.67%</td><td>54.4%</td></tr>
+  <tr><td>＋前一晚費半漲 >3%</td><td>+3.79%</td><td>57.3%</td></tr>
+ </table></div></div>
+ <div class="card"><h2>想要更高勝率：停利的取捨（高分組，最多持有 20 日，驗證期）</h2><div class="tw"><table>
+  <tr><th>停利</th><th>勝率</th><th>每筆平均</th></tr>
+  <tr><td>不設</td><td>54.5%</td><td>+3.70%</td></tr><tr><td>+20%</td><td>55.9%</td><td>+2.58%</td></tr><tr><td>+10%</td><td>61.9%</td><td>+1.49%</td></tr><tr><td>+5%</td><td>71.5%</td><td>+0.54%</td></tr>
+ </table></div><div class="mut">停利越近，勝率越高，但每筆賺得越少。以總獲利來說「不設停利」最好。</div></div>
+ <div class="card"><h2>測過但沒有穩定效果的（不採用）</h2><div class="mut">布林通道、KD、MACD、RSI(2)、海龜突破、均線排列、帶量長紅、投信／外資買超、土洋同買、千張大戶增加、散戶減少、融資減少、融資使用率、EPS 成長（只在單一期間有效）。</div></div>
+ <div class="card"><h2>跟市面工具的差別</h2><div class="mut">股市火力旺、籌碼K線等工具提供盤後選股清單與籌碼指標（集中度、券資比、分點、主力成本），但沒有公開每個策略扣成本後的歷史勝率。本站每一條規則都附回測數字，並每天記錄實際戰績。分點／主力成本資料需更高等級的資料授權，目前未納入。</div></div>
+ <div class="warn">回測是過去 5 年的統計結果，不保證未來表現。本站不是投資建議，作者也不是持牌投資顧問；請自行判斷並控制部位。2024-11 之後的驗證期多屬多頭行情。</div>
+ <div class="mut">資料來源：FinMind（歷史資料）、臺灣證券交易所與櫃買中心 OpenAPI（每日更新）、FinMind USStockPrice（美股）。程式與回測報告：<a href="https://github.com/xsos32-design/stock-model">GitHub</a></div>
+</section>
+</main>
+<footer>本站內容僅供研究參考，不構成任何投資建議。資料來源標示：FinMind、TWSE、TPEx。</footer>
+<script>
+const $=s=>document.querySelector(s), pct=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+(v*100).toFixed(d)+'%', cls=v=>v>0?'up':v<0?'dn':'';
+let T=null,S=[];
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.sec').forEach(x=>x.classList.toggle('on',x.id===b.dataset.s));if(b.dataset.s==='hold')renderHold();});
+function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
+async function load(){
+ const v='?t='+Date.now();
+ T=await (await fetch('data/today.json'+v)).json(); S=await (await fetch('data/stocks.json'+v)).json();
+ $('#asof').textContent='資料日期 '+T.date; $('#gen').textContent='更新 '+T.generated;
+ home(); cands(); track();
+}
+function home(){
+ const go=T.can_enter, r=[];
+ if(!T.mkt_up) r.push('加權指數在 60 日線之下'); r.push(...T.gate);
+ $('#status').innerHTML=`<div class="status ${go?'go':'stop'}"><b>${go?'可以開新倉':'暫停開新倉'}</b>${go?`今天符合條件的股票 ${T.n_cand} 檔，見「候選清單」`:'原因：'+r.join('、')+'。已持有的部位照原定 20 日出場即可。'}</div>`;
+ const t=T.taiex; $('#tkpi').innerHTML=`<div class="kpi"><div class="v ${cls(t.chg)}">${t.close.toLocaleString()}</div><div class="l">加權指數 ${pct(t.chg,2)}</div></div><div class="kpi"><div class="v">${t.ma60.toLocaleString()}</div><div class="l">60 日線</div></div><div class="kpi"><div class="v ${t.close>t.ma60?'up':'dn'}">${pct(t.close/t.ma60-1)}</div><div class="l">距 60 日線</div></div>`;
+ const s=t.series,W=600,H=160,vals=s.flatMap(x=>[x[1],x[2]]).filter(x=>x),mn=Math.min(...vals),mx=Math.max(...vals),X=i=>i/(s.length-1)*W,Y=v=>H-8-(v-mn)/(mx-mn)*(H-16);
+ const path=k=>s.map((x,i)=>x[k]==null?'':`${i&&s[i-1][k]!=null?'L':'M'}${X(i).toFixed(1)},${Y(x[k]).toFixed(1)}`).join('');
+ $('#chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%"><path d="${path(2)}" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/><path d="${path(1)}" fill="none" stroke="var(--acc)" stroke-width="2"/><text x="4" y="12">${s[0][0]}</text><text x="${W-60}" y="12">${s[s.length-1][0]}</text></svg><div class="mut">藍線：加權指數；橘虛線：60 日線</div>`;
+ const u=T.us||{}; $('#ust').innerHTML='<tr><th>指標</th><th>美股日期</th><th>收盤</th><th>漲跌</th></tr>'+Object.entries(u).map(([k,x])=>`<tr><td>${k}</td><td>${x.date}</td><td>${x.close.toLocaleString()}</td><td class="${cls(x.chg)}">${pct(x.chg,2)}</td></tr>`).join('')||'<tr><td>美股資料暫缺</td></tr>';
+ $('#disp').innerHTML=T.disposed.length?T.disposed.map(d=>`<span class="pill">${d.id} ${d.name}</span>`).join(''):'無';
+}
+function card(c){
+ const f=Object.entries(c.factors);
+ return `<div class="card"><div class="row" style="justify-content:space-between"><div><b>${c.id} ${c.name}</b> <span class="mut">${c.mkt==='tpex'?'上櫃':'上市'} · ${c.ind||''}</span></div><div class="dots">${f.map(([k,v])=>`<span class="${v?'y':''}" title="${k}"></span>`).join('')} <b>${c.score}</b> 分</div></div>
+ <div class="grid"><div class="kpi"><div class="v">${c.close}</div><div class="l">收盤</div></div><div class="kpi"><div class="v">${pct(c.pct_hi-1)}</div><div class="l">距一年高點</div></div><div class="kpi"><div class="v ${cls(c.yoy3)}">${pct(c.yoy3)}</div><div class="l">近3月營收年增（${c.rev_month||'—'}）</div></div><div class="kpi"><div class="v ${cls(c.r120)}">${pct(c.r120)}</div><div class="l">120 日漲幅</div></div><div class="kpi"><div class="v">${c.val20??'—'} 億</div><div class="l">20 日均成交值</div></div></div>
+ <div style="margin-top:6px">${f.map(([k,v])=>`<span class="pill ${v?'y':'n'}">${v?'✓':'✗'} ${k}</span>`).join('')}</div>
+ ${c.notice?`<div class="warn">注意股：${c.notice}</div>`:''}
+ <div class="row" style="margin-top:8px"><button class="btn s" onclick="quickAdd('${c.id}',${c.close})">以收盤價加入持股</button></div></div>`;
+}
+function cands(){
+ $('#exitd').textContent=T.exit_est+'（約）';
+ const ms=+$('#minScore').value, mk=$('#mktF').value, L=T.candidates.filter(c=>c.score>=ms&&(!mk||c.mkt===mk));
+ $('#ccount').textContent=`共 ${L.length} 檔`+(T.can_enter?'':'（今天暫停開新倉，清單僅供觀察）');
+ $('#clist').innerHTML=L.map(card).join('')||'<div class="card mut">今天沒有符合條件的股票</div>';
+}
+$('#minScore').onchange=cands; $('#mktF').onchange=cands;
+function lookup(){
+ const q=$('#q').value.trim(); const c=S.find(x=>x.id===q)||S.find(x=>x.name&&x.name.includes(q));
+ if(!c){$('#qr').innerHTML='<div class="mut">找不到（只含上市櫃普通股）</div>';return}
+ const ck=Object.entries(c.checks);
+ $('#qr').innerHTML=`<div class="status ${c.signal&&T.can_enter?'go':'stop'}" style="margin-top:10px"><b>${c.signal?(T.can_enter?'今天符合進場條件':'個股符合，但今天暫停開新倉'):'今天不符合進場條件'}</b></div>`+card(c)+`<div class="card"><h2>進場條件檢查</h2>${ck.map(([k,v])=>`<div>${v?'✅':'❌'} ${k}</div>`).join('')}<div>${T.mkt_up?'✅':'❌'} 大盤在 60 日線上</div><div>${T.gate.length?'❌':'✅'} 前一晚美股未大跌</div>${c.disposed?`<div class="warn">處置中：${c.disposed}</div>`:''}</div>`;
+}
+$('#qb').onclick=lookup; $('#q').onkeydown=e=>{if(e.key==='Enter')lookup()};
+const fee=a=>Math.max(20,Math.floor(a*0.001425));
+function tdays(d){let n=0,x=new Date(d),e=new Date(T.date);while(x<e){x.setDate(x.getDate()+1);if(x.getDay()%6)n++}return n}
+function addBD(d,k){let x=new Date(d);while(k>0){x.setDate(x.getDate()+1);if(x.getDay()%6)k--}return x.toISOString().slice(0,10)}
+function quickAdd(id,px){const H=store('holds')||[];H.push({id,px,sh:1000,dt:T.date});store('holds',H);alert('已加入 '+id+'（預設 1000 股，可在「我的持股」修改）')}
+$('#hAdd').onclick=()=>{const id=$('#hId').value.trim(),px=+$('#hPx').value,sh=+$('#hSh').value||1000,dt=$('#hDt').value||T.date;if(!id||!px)return;const H=store('holds')||[];H.push({id,px,sh,dt});store('holds',H);renderHold()};
+function renderHold(){
+ const H=store('holds')||[];
+ $('#hlist').innerHTML=H.map((h,i)=>{const c=S.find(x=>x.id===h.id)||{},now=c.close,buy=h.px*h.sh,sell=now*h.sh,net=now?sell-fee(sell)-Math.floor(sell*0.003)-buy-fee(buy):null,d=tdays(h.dt),ex=addBD(h.dt,20),due=d>=20;
+  return `<div class="card"><div class="row" style="justify-content:space-between"><b>${h.id} ${c.name||''}</b><button class="btn s g" onclick="delH(${i})">刪除</button></div>
+  <div class="grid"><div class="kpi"><div class="v">${h.px} → ${now??'—'}</div><div class="l">買進 → 最新收盤</div></div><div class="kpi"><div class="v ${cls(net)}">${net==null?'—':Math.round(net).toLocaleString()} 元</div><div class="l">扣費稅後損益（${h.sh} 股）</div></div><div class="kpi"><div class="v">${d} / 20</div><div class="l">已持有交易日（約）</div></div><div class="kpi"><div class="v">${ex}</div><div class="l">預定出場日（約）</div></div></div>
+  ${due?'<div class="warn">已滿 20 個交易日：依規則於收盤出場</div>':''}</div>`}).join('')||'<div class="card mut">尚無持股</div>';
+}
+function delH(i){const H=store('holds')||[];H.splice(i,1);store('holds',H);renderHold()}
+async function track(){
+ try{const R=await (await fetch('data/track.json?t='+Date.now())).json(),s=R.summary||{};
+ $('#tsum').innerHTML=`<div class="grid"><div class="kpi"><div class="v">${s.n_done??0}</div><div class="l">已滿 20 日筆數</div></div><div class="kpi"><div class="v">${s.win==null?'—':(s.win*100).toFixed(1)+'%'}</div><div class="l">勝率（可進場日）</div></div><div class="kpi"><div class="v ${cls(s.avg)}">${pct(s.avg,2)}</div><div class="l">每筆平均（扣成本）</div></div><div class="kpi"><div class="v">${s.n_open??0}</div><div class="l">持有中</div></div></div><div class="mut">從網站上線日開始累積，未滿 20 日的筆數以目前價格試算。</div>`;
+ $('#tt').innerHTML='<tr><th>日期</th><th>股票</th><th>分數</th><th>天數</th><th>報酬</th><th>可進場</th></tr>'+R.records.slice().reverse().slice(0,200).map(r=>`<tr><td>${r.date}</td><td>${r.id} ${r.name}</td><td>${r.score}</td><td>${r.days}</td><td class="${cls(r.ret)}">${pct(r.ret,2)}</td><td>${r.can_enter?'是':'否'}</td></tr>`).join('');}catch(e){$('#tsum').textContent='尚無紀錄'}
+}
+load();
+</script>
+</body>
+</html>

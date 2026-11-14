@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>今天買什麼</title>
+<title>今天怎麼做</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--line:#e6e8ec;--fg:#16181d;--mut:#6b7280;--red:#d63c3c;--green:#1e9e5a;--blue:#2f6fed;--soft:#f0f4ff}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b22;--line:#2a2f3a;--fg:#eceef3;--mut:#9aa1ad;--soft:#1d2433}}
@@ -50,6 +50,17 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
 .chart .tip{position:absolute;top:0;left:0;right:0;font-size:12px;color:var(--mut);display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
 .rng{display:flex;gap:6px;margin-top:8px}.rng button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:4px 0;font-size:13px}.rng button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 .legend{font-size:12px;color:var(--mut);margin-top:4px}.legend i{display:inline-block;width:10px;height:2px;vertical-align:middle;margin:0 3px 0 8px}
+.steps{counter-reset:st;margin:0;padding:0;list-style:none}
+.steps li{position:relative;padding:10px 0 10px 40px;border-bottom:1px solid var(--line)}.steps li:last-child{border:0}
+.steps li:before{counter-increment:st;content:counter(st);position:absolute;left:0;top:10px;width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;text-align:center;line-height:28px;font-weight:700;font-size:15px}
+.steps li.sell:before{background:var(--red)}.steps li.wait:before{background:var(--mut)}.steps li.buy:before{background:var(--green)}
+.steps .act{font-weight:700;font-size:17px}.steps .sub{color:var(--mut);font-size:14px}
+.ev{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.ev:last-child{border:0}
+.dot{flex:0 0 12px;height:12px;border-radius:50%;margin-top:6px}.dot.ok{background:var(--green)}.dot.bad{background:var(--red)}.dot.na{background:var(--mut)}
+.ev .h{font-weight:600}.ev .so{font-size:14px;color:var(--mut)}
+.meter{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--red) 0 20%,var(--line) 20% 100%);margin:6px 0 2px}
+.meter b{position:absolute;top:-4px;width:4px;height:18px;background:var(--fg);border-radius:2px}
+.when{background:var(--soft);border-radius:10px;padding:10px;font-size:15px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -57,12 +68,10 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
 
 <section id="today" class="sec on">
   <div id="light"></div>
-  <div class="strip">
-    <div><div class="t">大盤</div><div class="v" id="mkt">—</div></div>
-    <div><div class="t">昨晚美股（費半）</div><div class="v" id="us">—</div></div>
-  </div>
-  <div class="card" style="margin-top:12px" id="alloc"></div>
-  <div class="card" style="margin-top:12px;padding:12px"><div class="mut">加權指數（藍）與 60 日均線（橘），在橘線上面＝安全</div><div id="tchart"></div></div>
+  <div class="card" id="todo"></div>
+  <div class="card" id="events"></div>
+  <div class="card" id="alloc"></div>
+  <div class="card" style="padding:12px"><div class="mut">加權指數（藍）與 60 日均線（橘虛線）：藍線在橘線上面＝大盤安全</div><div id="tchart"></div></div>
   <div class="mut" id="asof" style="margin:8px 4px 12px"></div>
   <div id="picks"></div>
   <div id="more"></div>
@@ -137,7 +146,7 @@ function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.sec').forEach(x=>x.classList.toggle('on',x.id===b.dataset.s));
-  if(b.dataset.s==='mine')renderMine(); window.scrollTo(0,0);});
+  if(b.dataset.s==='mine')renderMine(); if(b.dataset.s==='today'&&T)renderToday(); window.scrollTo(0,0);});
 
 function sharesFor(px){return Math.max(1,Math.floor(UNIT/(px*(1+FEE))))}
 function lots(sh){const z=Math.floor(sh/1000),r=sh%1000;return (z?z+' 張':'')+(z&&r?' ':'')+(r?r+' 股':'')}
@@ -154,26 +163,61 @@ async function load(){
   S=await (await fetch('data/stocks.json'+v)).json();
   renderToday(); renderRecord(); taiexChart();
 }
+const WD='日一二三四五六';
+function nextTD(d){const x=new Date(d+'T00:00:00');do{x.setDate(x.getDate()+1)}while(x.getDay()%6===0);return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}
+function holdStatus(){const H=store('holds')||[];return H.map(h=>{const c=S.find(x=>x.id===h.id)||{},now=c.close,d=tdays(h.dt);
+  return {...h,name:c.name||h.id,now,d,stop:now&&now<=h.px*0.9,due:d>=19}})}
 function renderToday(){
-  const why=[];
-  if(!T.mkt_up)why.push('大盤走弱（跌破 60 日均線）');
-  T.gate.forEach(g=>why.push(g.replace('前一晚','昨晚')));
+  const t=T.taiex, gap=t.close/t.ma60-1, us=T.us||{}, sox=us['費半SOX'], tsm=us['台積電ADR'], big=T.big||{};
+  const H50=(T.etf_hold===undefined)?T.mkt_up:T.etf_hold, day=nextTD(T.date);
+  const usBad=(sox&&sox.chg<=-0.03)||(tsm&&tsm.chg<=-0.02), bigBad=!!big.low;
+  const why=[]; if(!T.mkt_up)why.push('大盤跌破 60 日線'); if(usBad)why.push('昨晚美股大跌'); if(bigBad)why.push('期貨大戶偏空');
   $('#light').innerHTML=T.can_enter
-    ?`<div class="light go"><div class="big">今天可以買</div><div class="why">從下面推薦挑前幾名，收盤前買進</div></div>`
-    :`<div class="light stop"><div class="big">今天先不要買</div><div class="why">${why.join('、')}。<br>手上的股票照原計畫抱著就好。</div></div>`;
-  const H50=(T.etf_hold===undefined)?T.mkt_up:T.etf_hold;
-  $('#alloc').innerHTML=`<h2>資金怎麼放（控制最大虧損約 15% 內）</h2>
-   <div class="check"><span>個股（推薦名單，每檔 5 萬，最多 10 檔）</span><b>${T.can_enter?'30%　可買':'今天不買新股'}</b></div>
-   <div class="check"><span>0050</span><b>${H50?'49%　持有':'0%　賣出改現金'}</b></div>
-   <div class="check"><span>現金</span><b>${H50?'21%':'其餘全部'}</b></div>
-   <div class="mut" style="margin-top:6px">例：總資金 170 萬 → 個股 50 萬（10 檔×5 萬）、0050 約 83 萬、現金約 37 萬</div>`;
-  const t=T.taiex, gap=t.close/t.ma60-1;
-  $('#mkt').innerHTML=`<span class="${T.mkt_up?'up':'dn'}">${T.mkt_up?'安全':'偏弱'}</span> <span class="mut">${pct(gap)}</span>`;
-  const sox=(T.us||{})['費半SOX'];
-  $('#us').innerHTML=sox?`<span class="${cls(sox.chg)}">${pct(sox.chg,1)}</span>`:'—';
-  $('#asof').textContent=`資料日期 ${T.date}（盤後 18:10、早上 06:40 自動更新）`;
+    ?`<div class="light go"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">可以買新股票</div><div class="why">照下面步驟做，13:25～13:30 下單</div></div>`
+    :`<div class="light stop"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">不買新股票</div><div class="why">原因：${why.join('、')}<br>手上股票照規則處理就好（看下面步驟）</div></div>`;
+
+  // ---- to-do list ----
+  const st=[], HS=holdStatus();
+  HS.filter(h=>h.stop).forEach(h=>st.push(['sell',`賣出 ${h.name}（停損）`,`買 ${h.px} → 現在 ${h.now}，已跌超過 10%。開盤就賣，不要等。`]));
+  HS.filter(h=>!h.stop&&h.due).forEach(h=>st.push(['sell',`賣出 ${h.name}（抱滿 20 天）`,`13:25～13:30 用收盤價賣出。買 ${h.px} → 現在 ${h.now??'—'}`]));
+  st.push(H50?['buy','0050：繼續持有','沒有的話，可以用總資金的 49% 買進']:['sell','0050：賣出，改放現金',`有的話開盤賣掉；沒有就先不要買。等${!T.mkt_up?'大盤漲回 60 日線':'期貨大戶回穩'}再買回`]);
+  if(T.can_enter){const n=Math.min(10,T.candidates.length),slot=Math.max(0,10-HS.filter(h=>!h.stop&&!h.due).length);
+    st.push(['buy',`買推薦第 1～${Math.min(n,slot)} 名，每檔約 5 萬`,`13:25～13:30 下單（用收盤價成交）。買完按「我買了」，網站會幫你記天數和停損`]);
+    st.push(['wait','每檔掛好停損單','買進價的 9 成（跌 10%）自動賣出'])}
+  else st.push(['wait','新股票：不買','觀察名單照常更新，等燈號變綠再買']);
+  const keep=HS.filter(h=>!h.stop&&!h.due); if(keep.length)st.push(['wait',`其他 ${keep.length} 檔：繼續抱著`,keep.map(h=>`${h.name} 第${h.d}天`).join('、')+'。小跌不要賣']);
+  if(!HS.length)st.push(['wait','記錄你手上的股票','到「我的股票」新增，網站才能提醒你什麼時候該賣']);
+  $('#todo').innerHTML=`<h2>步驟（由上往下做）</h2><ol class="steps">${st.map(([k,a,b])=>`<li class="${k}"><div class="act">${a}</div><div class="sub">${b}</div></li>`).join('')}</ol>
+    <div class="mut" style="margin-top:6px">早上 06:40 會依昨晚美股再更新一次，下單前再看一眼。</div>`;
+
+  // ---- what happened ----
+  const ev=[];
+  ev.push([T.mkt_up?'ok':'bad',`大盤 ${t.close.toLocaleString()} 點（${pct(t.chg)}）`,
+    T.mkt_up?`在 60 日線 ${Math.round(t.ma60).toLocaleString()} 點上面 ${pct(gap)}，趨勢向上`:`在 60 日線 ${Math.round(t.ma60).toLocaleString()} 點下面 ${pct(gap)}。回測：這種時候買股票勝率明顯變差`]);
+  ev.push([sox?(usBad?'bad':'ok'):'na',`前一晚美股：費半 ${sox?pct(sox.chg):'—'}、台積電 ADR ${tsm?pct(tsm.chg):'—'}`,
+    usBad?'費半跌 3% 以上或台積電 ADR 跌 2% 以上。回測：隔天買進，之後一個月幾乎不賺':`沒有大跌${us['S&P500']?`（S&P500 ${pct(us['S&P500'].chg)}、Nasdaq ${pct((us['Nasdaq']||{}).chg)}）`:''}`]);
+  ev.push([big.ok?(bigBad?'bad':'ok'):'na','期貨大戶（前十大法人台指期）',
+    big.ok?`<div class="meter"><b style="left:calc(${(big.pct*100).toFixed(0)}% - 2px)"></b></div>
+      <div>${bigBad?'淨部位落在一年最低 20%（紅區），大戶在避險':'淨部位 '+(big.pct>=0.5?'偏多':'中性')+`（一年中比 ${(big.pct*100).toFixed(0)}% 的日子還多）`}。回測：紅區時避開，最大虧損由 −15.9% 降到 −12.7%</div>`:'今天抓不到資料，先不參考']);
+  ev.push(['na',`符合條件的股票 ${T.n_cand} 檔`,'接近一年新高、成交量夠、不是處置股。星星越多（營收、毛利變好）越優先']);
+  const need=[]; if(!T.mkt_up)need.push(`加權指數收在 ${Math.round(t.ma60).toLocaleString()} 點以上（還要漲 ${pct(t.ma60/t.close-1)}）`);
+  if(usBad)need.push('前一晚費半跌不到 3%、台積電 ADR 跌不到 2%'); if(bigBad)need.push('期貨大戶離開紅區');
+  $('#events').innerHTML=`<h2>發生什麼事（${T.date.slice(5).replace('-','/')} 收盤）</h2>${ev.map(([k,a,b])=>`<div class="ev"><span class="dot ${k}"></span><div style="flex:1"><div class="h">${a}</div><div class="so">${b}</div></div></div>`).join('')}
+    ${need.length?`<div class="when"><b>什麼時候會變綠燈？</b>以下全部做到：<br>・${need.join('<br>・')}</div>`:''}`;
+
+  // ---- allocation with user's capital ----
+  const cap=store('cap')||1700000, slots=Math.min(10,Math.floor(cap*0.3/UNIT)), sAmt=slots*UNIT;
+  $('#alloc').innerHTML=`<h2>我的錢怎麼分</h2>
+   <div class="row" style="align-items:center"><span class="mut" style="flex:0 0 auto">總資金</span><input id="cap" inputmode="numeric" value="${cap}"></div>
+   <div class="check"><span>個股（每檔 5 萬，最多 ${slots} 檔）</span><b>${sAmt.toLocaleString()} 元　${T.can_enter?'可買':'今天不買'}</b></div>
+   <div class="check"><span>0050</span><b>${H50?Math.round(cap*0.49).toLocaleString()+' 元　持有':'0 元　換現金'}</b></div>
+   <div class="check"><span>現金（含沒用到的）</span><b>${(cap-sAmt-(H50?Math.round(cap*0.49):0)).toLocaleString()} 元</b></div>
+   <div class="mut" style="margin-top:6px">回測 11 年：年化 +15.3%、最大虧損 −12.7%（已扣費稅，是過去成績不保證未來）</div>`;
+  $('#cap').onchange=e=>{const v=+e.target.value.replace(/\D/g,'');if(v>0){store('cap',v);renderToday();taiexChart()}};
+
+  $('#asof').textContent=`資料：${T.date} 收盤・更新於 ${T.generated}（每天 18:10 與 06:40 自動更新）`;
   const L=T.candidates, top=L.slice(0,5);
-  $('#picks').innerHTML=(T.can_enter?'<h2 style="margin:4px 4px 10px">今天推薦</h2>':'<h2 style="margin:4px 4px 10px">觀察名單（今天不買）</h2>')+
+  $('#picks').innerHTML=(T.can_enter?'<h2 style="margin:4px 4px 10px">今天推薦（由上往下買）</h2>':'<h2 style="margin:4px 4px 10px">觀察名單（今天不買，先看看）</h2>')+
     (top.map((c,i)=>pickCard(c,i)).join('')||'<div class="card mut">今天沒有符合條件的股票</div>');
   $('#more').innerHTML=L.length>5?`<details class="card"><summary>還有 ${L.length-5} 檔也符合（分數較低）</summary>${L.slice(5).map(c=>`<div class="check"><span>${c.name} <span class="mut">${c.id}</span></span><span><span class="stars">${stars(c.score)}</span> ${c.close}</span></div>`).join('')}</details>`:'';
 }
@@ -187,7 +231,7 @@ function pickCard(c,i){
   ${T.can_enter?`<button class="btn" onclick="addHold('${c.id}',${c.close},${sh})">我買了</button>`:''}</div>`;
 }
 function addHold(id,px,sh,dt){const H=store('holds')||[];H.push({id,px,sh,dt:dt||T.date});store('holds',H);
-  const b=event&&event.target;if(b){b.textContent='已加入「我的股票」';b.disabled=true;b.classList.add('ghost')}}
+  const b=event&&event.target;if(b){b.textContent='已加入「我的股票」';b.disabled=true;b.classList.add('ghost')}setTimeout(()=>{const y=scrollY;renderToday();scrollTo(0,y)},800)}
 $('#aAdd').onclick=()=>{const id=$('#aId').value.trim(),px=+$('#aPx').value;if(!id||!px)return alert('請填代號和買進價');
   addHold(id,px,+$('#aSh').value||sharesFor(px),$('#aDt').value||T.date);$('#aId').value=$('#aPx').value=$('#aSh').value='';renderMine()};
 function tdays(d){let n=0,x=new Date(d),e=new Date(T.date);while(x<e){x.setDate(x.getDate()+1);if(x.getDay()%6)n++}return n}

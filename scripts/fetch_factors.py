@@ -6,7 +6,10 @@ import pandas as pd
 TOKEN = os.environ["FINMIND_TOKEN"]
 API = "https://api.finmindtrade.com/api/v4/data"
 HDR = {"Authorization": f"Bearer {TOKEN}", "User-Agent": "stock-model"}
-START = (dt.date.today() - dt.timedelta(days=365 * 5 + 40)).isoformat()
+START = os.environ.get("START") or (dt.date.today() - dt.timedelta(days=365 * 5 + 40)).isoformat()
+END = os.environ.get("END", "")
+OUTDIR = os.environ.get("OUTDIR", "data/factors")
+IDS = os.environ.get("IDS", "data/universe.csv")
 GAP = 2.4
 NAME = sys.argv[1]
 DS = {"revenue": "TaiwanStockMonthRevenue", "inst": "TaiwanStockInstitutionalInvestorsBuySell",
@@ -58,20 +61,21 @@ def compact(df):
         return d.pivot_table(index=["date", "stock_id"], columns="type", values="value", aggfunc="last").reset_index()
     return df
 
-os.makedirs("data/factors", exist_ok=True)
+os.makedirs(OUTDIR, exist_ok=True)
 if NAME == "disposition":
     rows = []
     s = dt.date.fromisoformat(START)
-    while s < dt.date.today():
-        e = min(s + dt.timedelta(days=90), dt.date.today())
+    STOP = dt.date.fromisoformat(END) if END else dt.date.today()
+    while s < STOP:
+        e = min(s + dt.timedelta(days=90), STOP)
         r = call(DS[NAME], start_date=s.isoformat(), end_date=e.isoformat()); rows += r
         print(s, len(r), flush=True); s = e + dt.timedelta(days=1); time.sleep(GAP)
     df = pd.DataFrame(rows)
 else:
-    ids = pd.read_csv("data/universe.csv", dtype=str).stock_id.tolist()
+    ids = pd.read_csv(IDS, dtype=str).stock_id.tolist()
     frames, empty, levels = [], [], set()
     for i, sid in enumerate(ids):
-        r = call(DS[NAME], data_id=sid, start_date=START)
+        r = call(DS[NAME], data_id=sid, start_date=START, **({"end_date": END} if END else {}))
         if r:
             d = pd.DataFrame(r)
             if NAME == "holding": levels |= set(d.HoldingSharesLevel.unique())
@@ -82,6 +86,6 @@ else:
         time.sleep(GAP)
     df = pd.concat(frames, ignore_index=True)
     json.dump({"rows": len(df), "stocks": int(df.stock_id.nunique()), "empty": len(empty),
-               "levels": sorted(levels)}, open(f"data/factors/{NAME}.json", "w"), ensure_ascii=False, indent=1)
-df.to_parquet(f"data/factors/{NAME}.parquet", index=False, compression="zstd")
+               "levels": sorted(levels)}, open(f"{OUTDIR}/{NAME}.json", "w"), ensure_ascii=False, indent=1)
+df.to_parquet(f"{OUTDIR}/{NAME}.parquet", index=False, compression="zstd")
 print(NAME, len(df), "rows", df.stock_id.nunique() if "stock_id" in df else "")

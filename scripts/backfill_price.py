@@ -6,7 +6,9 @@ import pandas as pd
 TOKEN = os.environ["FINMIND_TOKEN"]
 API = "https://api.finmindtrade.com/api/v4/data"
 HDR = {"Authorization": f"Bearer {TOKEN}", "User-Agent": "stock-model"}
-START = (dt.date.today() - dt.timedelta(days=365 * 5 + 2)).isoformat()
+START = os.environ.get("START") or (dt.date.today() - dt.timedelta(days=365 * 5 + 2)).isoformat()
+END = os.environ.get("END", "")
+OUTDIR = os.environ.get("OUTDIR", "data/price_adj")
 GAP = 2.4  # seconds between calls -> ~1500/hr, under the 1600/hr Backer limit
 
 def call(dataset, **q):
@@ -38,18 +40,18 @@ time.sleep(GAP)
 ids = sorted(set(info["stock_id"]) | set(dl["stock_id"] if len(dl) else []))
 print(f"universe: {len(info)} listed + {len(dl)} delisted -> {len(ids)} ids", flush=True)
 
-os.makedirs("data/price_adj", exist_ok=True)
+os.makedirs(OUTDIR, exist_ok=True)
 meta = info.copy()
 if len(dl):
     d2 = dl[~dl["stock_id"].isin(info["stock_id"])][["stock_id", "stock_name"]].assign(type="delisted", industry_category="")
     meta = pd.concat([meta, d2])
-meta.to_csv("data/universe.csv", index=False)
+meta.to_csv(f"{OUTDIR}/universe.csv" if OUTDIR != "data/price_adj" else "data/universe.csv", index=False)
 
 frames, empty = [], []
 for i, sid in enumerate(ids + ["TAIEX", "TPEx", "0050"]):
-    rows = call("TaiwanStockPriceAdj", data_id=sid, start_date=START)
+    rows = call("TaiwanStockPriceAdj", data_id=sid, start_date=START, **({"end_date": END} if END else {}))
     if not rows and sid in ("TAIEX", "TPEx"):
-        rows = call("TaiwanStockPrice", data_id=sid, start_date=START)
+        rows = call("TaiwanStockPrice", data_id=sid, start_date=START, **({"end_date": END} if END else {}))
     if rows: frames.append(pd.DataFrame(rows))
     else: empty.append(sid)
     if i % 100 == 0: print(f"{i}/{len(ids)+3} {sid} rows={len(rows)}", flush=True)
@@ -61,9 +63,9 @@ df = df[["date", "stock_id", "open", "high", "low", "close", "volume", "value"]]
 df["date"] = pd.to_datetime(df["date"])
 for c in ["open", "high", "low", "close"]: df[c] = df[c].astype("float32")
 for y, g in df.groupby(df["date"].dt.year):
-    g.to_parquet(f"data/price_adj/{y}.parquet", index=False, compression="zstd")
+    g.to_parquet(f"{OUTDIR}/{y}.parquet", index=False, compression="zstd")
 summary = {"start": START, "ids_requested": len(ids) + 3, "ids_with_data": df["stock_id"].nunique(),
            "rows": len(df), "first": str(df["date"].min().date()), "last": str(df["date"].max().date()),
            "empty_ids": empty}
-json.dump(summary, open("data/price_adj/summary.json", "w"), ensure_ascii=False, indent=1)
+json.dump(summary, open(f"{OUTDIR}/summary.json", "w"), ensure_ascii=False, indent=1)
 print(json.dumps({k: v for k, v in summary.items() if k != "empty_ids"}), "empty:", len(empty))

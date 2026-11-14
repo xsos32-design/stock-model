@@ -5,8 +5,9 @@ Usage: python scripts/daily_update.py [--init]"""
 import os, sys, json, re, time, datetime as dt, urllib.request, urllib.parse
 import numpy as np, pandas as pd
 
-LIVE, DOCS = "data/live", "docs/data"
-os.makedirs(LIVE, exist_ok=True); os.makedirs(f"{DOCS}/history", exist_ok=True)
+LIVE = "data/live"
+DOCS = os.path.join(os.environ.get("SITE", "_site"), "data")
+os.makedirs(LIVE, exist_ok=True); os.makedirs(f"{DOCS}/px", exist_ok=True)
 TOKEN = os.environ.get("FINMIND_TOKEN", "")
 COST = 0.001425 * 2 + 0.003
 UA = {"User-Agent": "Mozilla/5.0 stock-model"}
@@ -30,30 +31,32 @@ def f(x):
     try: return float(str(x).replace(",", "").replace("+", ""))
     except: return np.nan
 
-# ---------------- init from the 5-year research data ----------------
-if "--init" in sys.argv:
-    import glob
-    px = pd.concat([pd.read_parquet(p) for p in sorted(glob.glob("data/price_adj/*.parquet"))])
-    px["date"] = pd.to_datetime(px.date)
-    keep = np.sort(px.date.unique())[-320:]
-    px[px.stock_id.str.fullmatch(r"[1-9]\d{3}") & px.date.isin(keep)].to_parquet(f"{LIVE}/prices.parquet", index=False)
-    px[px.stock_id == "TAIEX"][["date", "close"]].to_csv(f"{LIVE}/taiex.csv", index=False)
-    r = pd.read_parquet("data/factors/revenue.parquet")
-    r["avail"] = pd.to_datetime(r.date) + pd.Timedelta(days=10)
-    r[["stock_id", "revenue_year", "revenue_month", "revenue", "avail"]].to_parquet(f"{LIVE}/revenue.parquet", index=False)
-    fi = pd.read_parquet("data/factors/fin.parquet")
-    fi["gm"] = fi.GrossProfit / fi.Revenue
-    fi[["date", "stock_id", "gm"]].to_parquet(f"{LIVE}/fin.parquet", index=False)
-    print("init done")
-
-px = pd.read_parquet(f"{LIVE}/prices.parquet"); px["date"] = pd.to_datetime(px.date)
-taiex = pd.read_csv(f"{LIVE}/taiex.csv", parse_dates=["date"])
-rev = pd.read_parquet(f"{LIVE}/revenue.parquet")
-fin = pd.read_parquet(f"{LIVE}/fin.parquet"); fin["date"] = pd.to_datetime(fin.date)
+# ---------------- state: fixed research history + small append-only daily files ----------------
+import glob
+SITE = os.environ.get("SITE", "_site")
+os.makedirs(f"{LIVE}/daily", exist_ok=True); os.makedirs(f"{LIVE}/history", exist_ok=True)
+base = pd.concat([pd.read_parquet(p) for p in sorted(glob.glob("data/price_adj/*.parquet"))])
+base["date"] = pd.to_datetime(base.date)
+taiex = base[base.stock_id == "TAIEX"][["date", "close"]]
+base = base[base.stock_id.str.fullmatch(r"[1-9]\d{3}")]
+base = base[base.date >= base.date.max() - pd.Timedelta(days=500)]
+adds = [pd.read_parquet(p) for p in sorted(glob.glob(f"{LIVE}/daily/*.parquet"))]
+px = pd.concat([base] + adds) if adds else base
+px["date"] = pd.to_datetime(px.date)
+px = px.drop_duplicates(["date", "stock_id"], keep="last")
+if os.path.exists(f"{LIVE}/taiex_add.csv"):
+    taiex = pd.concat([taiex, pd.read_csv(f"{LIVE}/taiex_add.csv", parse_dates=["date"])]).drop_duplicates("date", keep="last")
+taiex = taiex.sort_values("date")
+r0 = pd.read_parquet("data/factors/revenue.parquet"); r0["avail"] = pd.to_datetime(r0.date) + pd.Timedelta(days=10)
+rev = r0[["stock_id", "revenue_year", "revenue_month", "revenue", "avail"]]
+if os.path.exists(f"{LIVE}/rev_add.parquet"): rev = pd.concat([rev, pd.read_parquet(f"{LIVE}/rev_add.parquet")])
+f0 = pd.read_parquet("data/factors/fin.parquet"); f0["gm"] = f0.GrossProfit / f0.Revenue
+fin = f0[["date", "stock_id", "gm"]]
+if os.path.exists(f"{LIVE}/fin_add.parquet"): fin = pd.concat([fin, pd.read_parquet(f"{LIVE}/fin_add.parquet")])
+fin["date"] = pd.to_datetime(fin.date)
 names = pd.read_csv("data/universe.csv", dtype=str).set_index("stock_id")
 names = names[~names.index.duplicated()]
 mkt_of = names["type"].to_dict(); name_of = names["stock_name"].to_dict(); ind_of = names["industry_category"].to_dict()
-
 # ---------------- daily prices (TWSE + TPEx) ----------------
 rows = []
 tw = get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL") or []
@@ -73,17 +76,17 @@ for x in tp:
 new = pd.DataFrame(rows).dropna(subset=["date", "close"])
 new = new[new.close > 0]
 if len(new):
+    for d, g_ in new.groupby("date"):
+        g_.to_parquet(f"{LIVE}/daily/{d:%Y-%m-%d}.parquet", index=False)
     px = pd.concat([px[~px.date.isin(new.date.unique())], new]).drop_duplicates(["date", "stock_id"], keep="last")
-    keep = np.sort(px.date.unique())[-320:]
-    px = px[px.date.isin(keep)]
-    px.to_parquet(f"{LIVE}/prices.parquet", index=False)
 
 mi = get("https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX") or []
 for x in mi:
     if x.get("指數") == "發行量加權股價指數":
         d = roc(x["日期"]); c = f(x["收盤指數"])
         taiex = pd.concat([taiex[taiex.date != d], pd.DataFrame([{"date": d, "close": c}])]).sort_values("date")
-        taiex.to_csv(f"{LIVE}/taiex.csv", index=False)
+        ta = pd.read_csv(f"{LIVE}/taiex_add.csv", parse_dates=["date"]) if os.path.exists(f"{LIVE}/taiex_add.csv") else pd.DataFrame(columns=["date", "close"])
+        pd.concat([ta[pd.to_datetime(ta.date) != d], pd.DataFrame([{"date": d, "close": c}])]).to_csv(f"{LIVE}/taiex_add.csv", index=False)
 
 # ---------------- monthly revenue ----------------
 have = set(zip(rev.stock_id, rev.revenue_year, rev.revenue_month)); add = []
@@ -95,9 +98,12 @@ for url in ("https://openapi.twse.com.tw/v1/opendata/t187ap05_P", "https://www.t
         rv = f(x.get("營業收入-當月營收")) * 1000
         if (c, y, m) not in have:
             have.add((c, y, m)); add.append(dict(stock_id=c, revenue_year=y, revenue_month=m, revenue=rv, avail=roc(x.get("出表日期"))))
-if add: rev = pd.concat([rev, pd.DataFrame(add)], ignore_index=True)
+if add:
+    ad = pd.DataFrame(add); ad["avail"] = pd.to_datetime(ad.avail)
+    old = pd.read_parquet(f"{LIVE}/rev_add.parquet") if os.path.exists(f"{LIVE}/rev_add.parquet") else ad.iloc[:0]
+    pd.concat([old, ad]).to_parquet(f"{LIVE}/rev_add.parquet", index=False)
+    rev = pd.concat([rev, ad], ignore_index=True)
 rev["avail"] = pd.to_datetime(rev.avail)
-rev.to_parquet(f"{LIVE}/revenue.parquet", index=False)
 
 # ---------------- quarterly income statement (gross margin) ----------------
 haveq = set(zip(fin.stock_id, fin.date)); addq = []
@@ -111,8 +117,11 @@ for url in ("https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci", "https://ww
         gp = f(x.get("營業毛利（毛損）淨額", x.get("營業毛利（毛損）"))); rv = f(x.get("營業收入"))
         if rv and rv == rv and (c, d) not in haveq:
             haveq.add((c, d)); addq.append(dict(date=d, stock_id=c, gm=gp / rv))
-if addq: fin = pd.concat([fin, pd.DataFrame(addq)], ignore_index=True)
-fin.to_parquet(f"{LIVE}/fin.parquet", index=False)
+if addq:
+    aq = pd.DataFrame(addq)
+    old = pd.read_parquet(f"{LIVE}/fin_add.parquet") if os.path.exists(f"{LIVE}/fin_add.parquet") else aq.iloc[:0]
+    pd.concat([old, aq]).to_parquet(f"{LIVE}/fin_add.parquet", index=False)
+    fin = pd.concat([fin, aq], ignore_index=True)
 
 # ---------------- disposition (current) ----------------
 disposed = {}
@@ -212,13 +221,12 @@ json.dump(today, open(f"{DOCS}/today.json", "w"), ensure_ascii=False, default=st
 json.dump(clean(S.to_dict("records")), open(f"{DOCS}/stocks.json", "w"), ensure_ascii=False, default=str)
 json.dump(dict(date=today["date"], can_enter=today["can_enter"], mkt_up=mkt_up, gate=gate_reasons,
                picks=[dict(id=x["id"], name=x["name"], close=x["close"], score=x["score"]) for x in cand.head(20).to_dict("records")]),
-          open(f"{DOCS}/history/{today['date']}.json", "w"), ensure_ascii=False)
+          open(f"{LIVE}/history/{today['date']}.json", "w"), ensure_ascii=False)
 
 # ---------------- live track record: candidates archived >= 20 trading days ago ----------------
-import glob
 recs = []
 closes = px.pivot(index="date", columns="stock_id", values="close")
-for p in sorted(glob.glob(f"{DOCS}/history/*.json")):
+for p in sorted(glob.glob(f"{LIVE}/history/*.json")):
     h = json.load(open(p)); d0 = pd.Timestamp(h["date"])
     if d0 not in closes.index: continue
     k = closes.index.get_loc(d0)
@@ -236,3 +244,14 @@ if len(R):
                 avg=None if not len(dn) else round(float(dn.ret.mean()), 4), n_open=int((~R.done).sum()))
 json.dump(dict(summary=summ, records=R.to_dict("records") if len(R) else []), open(f"{DOCS}/track.json", "w"), ensure_ascii=False)
 print("updated", today["date"], "candidates", len(cand), "can_enter", today["can_enter"], "us", us)
+
+# ---------------- per-stock price history for charts (deployed, not committed) ----------------
+last = np.sort(px.date.unique())[-130:]
+h = px[px.date.isin(last)].sort_values(["stock_id", "date"])
+for sid_, g_ in h.groupby("stock_id"):
+    json.dump({"d": [d.strftime("%m-%d") for d in g_.date], "o": g_.open.round(2).tolist(), "h": g_.high.round(2).tolist(),
+               "l": g_.low.round(2).tolist(), "c": g_.close.round(2).tolist(), "v": (g_.volume / 1000).round(0).tolist()},
+              open(f"{DOCS}/px/{sid_}.json", "w"), separators=(",", ":"))
+tx2 = taiex.tail(130)
+json.dump({"d": [d.strftime("%m-%d") for d in pd.to_datetime(tx2.date)], "c": tx2.close.round(2).tolist()}, open(f"{DOCS}/px/TAIEX.json", "w"))
+print("px files written")

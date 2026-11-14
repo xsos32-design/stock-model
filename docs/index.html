@@ -45,6 +45,11 @@ ol.rules{padding-left:22px;margin:0}ol.rules li{margin-bottom:10px}
 details summary{cursor:pointer;color:var(--blue);font-size:15px}
 .warn{background:#fff6e5;color:#7a4b00;border-radius:10px;padding:10px;font-size:14px;margin-top:10px}
 @media (prefers-color-scheme:dark){.warn{background:#3a2a0a;color:#ffd58a}}
+.chart{position:relative;margin-top:10px;touch-action:pan-y}
+.chart svg{width:100%;display:block}
+.chart .tip{position:absolute;top:0;left:0;right:0;font-size:12px;color:var(--mut);display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+.rng{display:flex;gap:6px;margin-top:8px}.rng button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:4px 0;font-size:13px}.rng button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.legend{font-size:12px;color:var(--mut);margin-top:4px}.legend i{display:inline-block;width:10px;height:2px;vertical-align:middle;margin:0 3px 0 8px}
 </style>
 </head>
 <body>
@@ -56,6 +61,7 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
     <div><div class="t">大盤</div><div class="v" id="mkt">—</div></div>
     <div><div class="t">昨晚美股（費半）</div><div class="v" id="us">—</div></div>
   </div>
+  <div class="card" style="margin-top:12px;padding:12px"><div class="mut">加權指數（藍）與 60 日均線（橘），在橘線上面＝安全</div><div id="tchart"></div></div>
   <div class="mut" id="asof" style="margin:8px 4px 12px"></div>
   <div id="picks"></div>
   <div id="more"></div>
@@ -139,7 +145,7 @@ async function load(){
   const v='?t='+Date.now();
   T=await (await fetch('data/today.json'+v)).json();
   S=await (await fetch('data/stocks.json'+v)).json();
-  renderToday(); renderRecord();
+  renderToday(); renderRecord(); taiexChart();
 }
 function renderToday(){
   const why=[];
@@ -164,6 +170,7 @@ function pickCard(c,i){
   <div><div class="price">${c.close}</div><div class="mut" style="text-align:right">收盤價</div></div></div>
   <div class="tags">${reasons(c).map(r=>`<span class="tag">${r}</span>`).join('')}</div>
   <div class="buyline">5 萬可買 <b>${lots(sh)}</b>（約 ${cost.toLocaleString()} 元），預計 <b>${T.exit_est.slice(5).replace('-','/')}</b> 左右賣出</div>
+  <button class="btn ghost" onclick="toggleChart(this,'${c.id}')">看走勢圖</button><div></div>
   ${T.can_enter?`<button class="btn" onclick="addHold('${c.id}',${c.close},${sh})">我買了</button>`:''}</div>`;
 }
 function addHold(id,px,sh,dt){const H=store('holds')||[];H.push({id,px,sh,dt:dt||T.date});store('holds',H);
@@ -180,7 +187,8 @@ function renderMine(){
     return `<div class="card"><div class="pick"><div><span class="name">${c.name||h.id}</span><span class="code">${h.id}</span><div class="mut">${h.px} → ${now??'—'}・${lots(h.sh)}</div></div>
     <div class="pl ${cls(net)}">${money(net)}</div></div>
     <div class="bar"><i style="width:${d/20*100}%"></i></div>
-    <div class="pick"><span class="mut">${left>0?`還要抱 ${left} 天（約 ${addBD(h.dt,20)}）`:'<b class="up">已滿 20 天，今天收盤前賣出</b>'}</span><button class="btn sm ghost" onclick="delHold(${i})">刪除</button></div></div>`}).join('')
+    <div class="pick"><span class="mut">${left>0?`還要抱 ${left} 天（約 ${addBD(h.dt,20)}）`:'<b class="up">已滿 20 天，今天收盤前賣出</b>'}</span><button class="btn sm ghost" onclick="delHold(${i})">刪除</button></div>
+    <button class="btn ghost" onclick="toggleChart(this,'${h.id}')">看走勢圖</button><div></div></div>`}).join('')
     ||'<div class="card mut">還沒有股票。在「今天」按「我買了」就會出現在這裡。</div>';
   $('#mineSum').innerHTML=H.length?`<div class="mut">目前總損益（已扣手續費、稅）</div><div class="pl ${cls(tot)}">${money(tot)}</div><div class="mut">投入約 ${Math.round(cost).toLocaleString()} 元・報酬 ${pct(tot/cost)}</div>`:'<h2>我的股票</h2><div class="mut">資料只存在這支手機，不會上傳。</div>';
 }
@@ -194,7 +202,9 @@ function lookup(){
   const ok=rows.every(r=>r[1]);
   $('#qr').innerHTML=`<div class="light ${ok?'go':'stop'}"><div class="big">${ok?'可以買':'現在不建議買'}</div><div class="why">${c.name} ${c.id}・收盤 ${c.close}・<span class="stars" style="color:#fff">${stars(c.score)}</span></div></div>
   <div class="card">${rows.map(r=>`<div class="check"><span>${r[0]}</span><b style="color:${r[1]?'var(--blue)':'var(--mut)'}">${r[1]?'✓ 符合':'✗ 不符合'}</b></div>`).join('')}</div>
+  <div class="card"><h2>走勢圖</h2><div id="lchart"></div></div>
   <div class="card"><div class="check"><span>近 3 月營收年增</span><b class="${cls(c.yoy3)}">${pct(c.yoy3)}</b></div><div class="check"><span>半年漲幅</span><b class="${cls(c.r120)}">${pct(c.r120)}</b></div><div class="check"><span>離一年最高點</span><b>${pct(c.pct_hi-1)}</b></div></div>`;
+  stockChart($('#lchart'),c.id);
 }
 $('#qb').onclick=lookup;$('#q').onkeydown=e=>{if(e.key==='Enter')lookup()};
 async function renderRecord(){
@@ -204,6 +214,46 @@ async function renderRecord(){
     $('#recList').innerHTML=R.records.slice().reverse().slice(0,60).map(r=>`<div class="card pick"><div><b>${r.name}</b> <span class="mut">${r.id}・${r.date}</span><div class="mut">${r.done?'已滿 20 天':'第 '+r.days+' 天'}${r.can_enter?'':'・當天紅燈'}</div></div><div class="pl ${cls(r.ret)}" style="font-size:20px">${pct(r.ret)}</div></div>`).join('');
   }catch(e){$('#recSum').textContent='還沒有紀錄'}
 }
+
+// ---------- charts ----------
+const PX={};
+async function getPx(id){if(PX[id])return PX[id];const r=await fetch('data/px/'+id+'.json?t='+(T?T.date:''));if(!r.ok)throw 0;return PX[id]=await r.json()}
+function ma(a,n){return a.map((_,i)=>i<n-1?null:a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n)}
+function kd(h,l,c){let K=50,D=50;const k=[],d=[];c.forEach((x,i)=>{const lo=Math.min(...l.slice(Math.max(0,i-8),i+1)),hi=Math.max(...h.slice(Math.max(0,i-8),i+1));const rsv=hi>lo?(x-lo)/(hi-lo)*100:50;K=K*2/3+rsv/3;D=D*2/3+K/3;k.push(K);d.push(D)});return [k,d]}
+async function stockChart(el,id,days=60){
+  el.innerHTML='<div class="mut">載入走勢圖…</div>';
+  let P;try{P=await getPx(id)}catch(e){el.innerHTML='<div class="mut">暫無走勢資料</div>';return}
+  const m5=ma(P.c,5),m20=ma(P.c,20),m60=ma(P.c,60),[K,D]=kd(P.h,P.l,P.c);
+  const n=Math.min(days,P.c.length),s0=P.c.length-n,W=360,H1=190,H2=40,H3=50,G=6,H=H1+H2+H3+G*2+12;
+  const sl=a=>a.slice(s0);const o=sl(P.o),h=sl(P.h),l=sl(P.l),c=sl(P.c),v=sl(P.v),d=sl(P.d),a5=sl(m5),a20=sl(m20),a60=sl(m60),k=sl(K),dd=sl(D);
+  const vals=[...h,...l,...a20.filter(x=>x),...a60.filter(x=>x)],mx=Math.max(...vals),mn=Math.min(...vals),vm=Math.max(...v)||1;
+  const bw=W/n,X=i=>i*bw+bw/2,Y=y=>36+(mx-y)/(mx-mn||1)*(H1-40),VY=y=>H1+G+H2-(y/vm)*H2,KY=y=>H1+G+H2+G+H3-(y/100)*H3;
+  const line=(a,col,f=Y)=>`<path d="${a.map((y,i)=>y==null?'':`${i&&a[i-1]!=null?'L':'M'}${X(i).toFixed(1)},${f(y).toFixed(1)}`).join('')}" fill="none" stroke="${col}" stroke-width="1.3"/>`;
+  let g='';for(let i=0;i<n;i++){const up=c[i]>=o[i],col=up?'var(--red)':'var(--green)';
+    g+=`<line x1="${X(i)}" x2="${X(i)}" y1="${Y(h[i])}" y2="${Y(l[i])}" stroke="${col}"/><rect x="${X(i)-bw*0.35}" y="${Y(Math.max(o[i],c[i]))}" width="${bw*0.7}" height="${Math.max(1,Math.abs(Y(o[i])-Y(c[i])))}" fill="${col}"/>`;
+    g+=`<rect x="${X(i)-bw*0.35}" y="${VY(v[i])}" width="${bw*0.7}" height="${H1+G+H2-VY(v[i])}" fill="${col}" opacity=".5"/>`}
+  const svg=`<svg viewBox="0 0 ${W} ${H}"><rect x="0" y="0" width="${W}" height="${H}" fill="transparent"/>${g}${line(a5,'#f5a524')}${line(a20,'#8b5cf6')}${line(a60,'#0ea5e9')}
+   <line x1="0" x2="${W}" y1="${KY(80)}" y2="${KY(80)}" stroke="var(--line)" stroke-dasharray="3 3"/><line x1="0" x2="${W}" y1="${KY(20)}" y2="${KY(20)}" stroke="var(--line)" stroke-dasharray="3 3"/>
+   ${line(k,'#f5a524',KY)}${line(dd,'#2f6fed',KY)}
+   <text x="2" y="${H1+G+10}" font-size="9" fill="var(--mut)">成交量(張)</text><text x="2" y="${H1+G+H2+G+10}" font-size="9" fill="var(--mut)">KD</text>
+   <text x="${W-2}" y="12" font-size="9" fill="var(--mut)" text-anchor="end">${mx.toFixed(1)}</text><text x="${W-2}" y="${H1}" font-size="9" fill="var(--mut)" text-anchor="end">${mn.toFixed(1)}</text>
+   <line class="cx" x1="0" x2="0" y1="0" y2="${H}" stroke="var(--mut)" stroke-width=".6" opacity="0"/></svg>`;
+  el.innerHTML=`<div class="chart"><div class="tip"></div>${svg}</div><div class="legend"><i style="background:#f5a524"></i>5日<i style="background:#8b5cf6"></i>20日<i style="background:#0ea5e9"></i>60日均線　KD：<i style="background:#f5a524"></i>K<i style="background:#2f6fed"></i>D</div>
+   <div class="rng">${[[20,'1個月'],[60,'3個月'],[120,'6個月']].map(([x,t])=>`<button class="${x===days?'on':''}" data-d="${x}">${t}</button>`).join('')}</div>`;
+  el.querySelectorAll('.rng button').forEach(b=>b.onclick=()=>stockChart(el,id,+b.dataset.d));
+  const box=el.querySelector('.chart'),sv=box.querySelector('svg'),cx=sv.querySelector('.cx'),tip=box.querySelector('.tip');
+  const show=i=>{i=Math.max(0,Math.min(n-1,i));cx.setAttribute('x1',X(i));cx.setAttribute('x2',X(i));cx.setAttribute('opacity',1);
+    const ch=i?(c[i]/c[i-1]-1):0;tip.innerHTML=`<b style="color:var(--fg)">${d[i]}</b><span>收 <b class="${cls(ch)}">${c[i]}</b> ${pct(ch,1)}</span><span>開${o[i]} 高${h[i]} 低${l[i]}</span><span>量 ${v[i].toLocaleString()} 張</span><span>K${k[i].toFixed(0)} D${dd[i].toFixed(0)}</span>`};
+  const pos=e=>{const r=sv.getBoundingClientRect(),xx=((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width*W;return Math.floor(xx/bw)};
+  sv.addEventListener('pointermove',e=>show(pos(e)));sv.addEventListener('touchmove',e=>show(pos(e)),{passive:true});
+  sv.addEventListener('pointerdown',e=>show(pos(e)));show(n-1);
+}
+async function taiexChart(){
+  try{const P=await getPx('TAIEX'),c=P.c,m=ma(c,60),n=c.length,W=360,H=110,vals=[...c,...m.filter(x=>x)],mx=Math.max(...vals),mn=Math.min(...vals),X=i=>i/(n-1)*W,Y=y=>6+(mx-y)/(mx-mn)*(H-12);
+   const ln=(a,col,dash='')=>`<path d="${a.map((y,i)=>y==null?'':`${i&&a[i-1]!=null?'L':'M'}${X(i).toFixed(1)},${Y(y).toFixed(1)}`).join('')}" fill="none" stroke="${col}" stroke-width="2" ${dash}/>`;
+   $('#tchart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%">${ln(m,'#f5a524','stroke-dasharray="4 3"')}${ln(c,'var(--blue)')}<text x="2" y="${H-2}" font-size="9" fill="var(--mut)">${P.d[0]}</text><text x="${W-2}" y="${H-2}" font-size="9" fill="var(--mut)" text-anchor="end">${P.d[n-1]}</text></svg>`}catch(e){}
+}
+function toggleChart(btn,id){const el=btn.nextElementSibling;if(el.innerHTML){el.innerHTML='';btn.textContent='看走勢圖';return}btn.textContent='收起走勢圖';stockChart(el,id)}
 load();
 </script>
 </body>

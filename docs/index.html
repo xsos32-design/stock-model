@@ -88,7 +88,7 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
 
 <section id="look" class="sec">
   <div class="card"><h2>這檔可以買嗎？</h2>
-    <div class="row"><input id="q" placeholder="輸入代號或名稱，例如 2330"><button class="btn sm" id="qb" style="flex:0 0 auto">查詢</button></div></div>
+    <div class="row"><input id="q" placeholder="輸入代號或名稱，例如 2330、0050"><button class="btn sm" id="qb" style="flex:0 0 auto">查詢</button></div></div>
   <div id="qr"></div>
 </section>
 
@@ -254,7 +254,14 @@ function renderMine(){
 function delHold(i){if(!confirm('刪除這筆？'))return;const H=store('holds')||[];H.splice(i,1);store('holds',H);renderMine()}
 function lookup(){
   const q=$('#q').value.trim();if(!q)return;const c=S.find(x=>x.id===q)||S.find(x=>x.name&&x.name.includes(q));
-  if(!c){$('#qr').innerHTML='<div class="card mut">找不到（只有上市櫃普通股）</div>';return}
+  if(!c){$('#qr').innerHTML='<div class="card mut">找不到這個代號或名稱（上市櫃股票與 ETF 都可以查）</div>';return}
+  if(c.etf){const H50=(T.etf_hold===undefined)?T.mkt_up:T.etf_hold, is50=c.id==='0050';
+    $('#qr').innerHTML=`<div class="light ${is50?(H50?'go':'stop'):'go'}" style="${is50?'':'background:var(--blue)'}"><div class="big">${is50?(H50?'0050：可以持有':'0050：先換現金'):'ETF'}</div><div class="why">${c.name} ${c.id}・收盤 ${c.close}</div></div>
+    <div class="card">${is50?`<div>0050 是本站資金配置的一部分（總資金 49%）。</div><div class="check"><span>大盤在 60 日線上</span><b style="color:${T.mkt_up?'var(--blue)':'var(--mut)'}">${T.mkt_up?'✓ 符合':'✗ 不符合'}</b></div><div class="check"><span>期貨大戶沒偏空</span><b style="color:${!(T.big||{}).low?'var(--blue)':'var(--mut)'}">${!(T.big||{}).low?'✓ 符合':'✗ 不符合'}</b></div><div class="mut" style="margin-top:6px">兩個都符合才持有，否則賣出放現金，等回來再買。</div>`
+      :`<div class="mut">ETF 不在本站選股範圍（回測只驗證過個股與 0050），這裡只提供價格和走勢圖。</div>`}</div>
+    <div class="card"><h2>走勢圖</h2><div id="lchart"></div></div>
+    <div class="card"><div class="check"><span>半年漲幅</span><b class="${cls(c.r120)}">${pct(c.r120)}</b></div><div class="check"><span>離一年最高點</span><b>${c.pct_hi?pct(c.pct_hi-1):'—'}</b></div></div>`;
+    stockChart($('#lchart'),c.id);return}
   const k=c.checks, rows=[
     ['大盤夠強',T.mkt_up],['昨晚美股、期貨大戶沒偏空',!T.gate.length],['接近一年新高',k['接近一年新高(≥98%)']],
     ['成交量夠大',k['流動性(20日均成交值≥2千萬)']],['不是處置股',k['非處置股']],['今天沒漲停（買得到）',k['收盤未漲停(買得到)']],['股價 10 元以上',k['股價≥10元']]];

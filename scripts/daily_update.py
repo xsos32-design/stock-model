@@ -226,7 +226,22 @@ cand = S[S.signal].sort_values(["score", "r120"], ascending=[False, False])
 i = np.searchsorted(tdates, T)
 exit_est = (pd.Timestamp(T) + pd.offsets.BDay(20)).strftime("%Y-%m-%d")
 
-today = dict(date=T.strftime("%Y-%m-%d"), generated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+# ---------------- next trading day (TWSE holiday schedule) & data health ----------------
+closed = set()
+for x in get("https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule") or []:
+    try:
+        nm, dd = x.get("Name", ""), str(x.get("Date", ""))
+        if "開始交易" in nm or "最後交易" in nm: continue
+        closed.add(dt.date(int(dd[:-4]) + 1911, int(dd[-4:-2]), int(dd[-2:])))
+    except Exception: pass
+nd = T.date() + dt.timedelta(days=1)
+while nd.weekday() >= 5 or nd in closed: nd += dt.timedelta(days=1)
+warn = []
+if "費半SOX" not in us or "台積電ADR" not in us: warn.append("美股資料沒抓到，燈號沒有考慮昨晚美股")
+if not big.get("ok"): warn.append("期貨大戶資料沒抓到，0050 只依大盤 60 日線判斷")
+if (dt.date.today() - T.date()).days > 5: warn.append(f"股價資料停在 {T.date()}，可能抓取失敗")
+
+today = dict(date=T.strftime("%Y-%m-%d"), next_td=nd.isoformat(), warn=warn, generated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
              taiex=dict(close=round(float(tx.iloc[-1]), 2), ma60=round(float(ma60.iloc[-1]), 2), chg=round(float(tx.iloc[-1] / tx.iloc[-2] - 1), 4),
                         series=[[d.strftime("%Y-%m-%d"), round(float(c), 2), None if m != m else round(float(m), 2)] for d, c, m in zip(tx.index[-120:], tx.values[-120:], ma60.values[-120:])]),
              mkt_up=mkt_up, us=us, big=big, gate=gate_reasons, can_enter=mkt_up and not gate_reasons, etf_hold=mkt_up and not etf_gate,

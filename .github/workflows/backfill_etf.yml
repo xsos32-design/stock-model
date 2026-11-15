@@ -1,0 +1,28 @@
+name: backfill-etf
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: backfill
+jobs:
+  etf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pyarrow
+      - name: Backfill ETF prices
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python scripts/backfill_etf.py
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/etf
+          git commit -m "data: ETF adjusted prices since 2014-11" || echo "no changes"
+          git pull --rebase
+          git push

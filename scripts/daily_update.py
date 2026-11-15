@@ -35,7 +35,7 @@ def f(x):
 import glob
 SITE = os.environ.get("SITE", "_site")
 os.makedirs(f"{LIVE}/daily", exist_ok=True); os.makedirs(f"{LIVE}/history", exist_ok=True)
-base = pd.concat([pd.read_parquet(p) for p in sorted(glob.glob("data/price_adj/*.parquet"))])
+base = pd.concat([pd.read_parquet(p) for p in sorted(glob.glob("data/price_adj/*.parquet")) + sorted(glob.glob("data/etf/202[5-9].parquet"))])
 base["date"] = pd.to_datetime(base.date)
 taiex = base[base.stock_id == "TAIEX"][["date", "close"]]
 SID = r"[1-9]\d{3}|00\d{2,4}[A-Z]?"   # common stocks + ETFs (ETFs: lookup/charts only, never signals)

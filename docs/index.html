@@ -120,7 +120,7 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
     <div class="check"><span>再挑營收大增的</span><b class="up">平均賺 3.7%</b></div>
     <div class="check"><span>昨晚費半大跌的隔天買</span><b class="dn">幾乎不賺</b></div>
     <details style="margin-top:8px"><summary>看更多回測細節</summary>
-      <div class="mut" style="margin-top:8px">燈號＝加權指數在 60 日均線上＋前一晚費半沒有跌超過 3%、台積電 ADR 沒有跌超過 2%。<br>推薦條件＝股價接近一年最高點、成交量夠大、不是處置股、收盤沒漲停。<br>星星＝符合幾項：月營收年增 20% 以上、近 3 月營收年增 15% 以上、營收成長加速、毛利率比去年好、半年漲幅 30% 以上。<br>測過沒用的：KD、MACD、布林通道、RSI、投信外資買超、大戶持股、融資、本益比。<br>完整報告：<a href="https://github.com/xsos32-design/stock-model/tree/main/results">GitHub</a></div></details>
+      <div class="mut" style="margin-top:8px">燈號＝加權指數在 60 日均線上＋前一晚費半沒有跌超過 3%、台積電 ADR 沒有跌超過 2%。<br>推薦條件＝股價接近一年最高點、成交量夠大、不是處置股、收盤沒漲停。<br>星星＝符合幾項：月營收年增 20% 以上、近 3 月營收年增 15% 以上、營收成長加速、毛利率比去年好、半年漲幅 30% 以上。<br>測過沒用的：KD、MACD、布林通道、RSI、投信外資買超、大戶持股、融資、本益比；網路熱門的 Minervini 趨勢模板、VCP 波動收縮、跌破均線出場、移動停利、抱更久、改停損幅度、市場廣度、低波動、營收創新高排序，套在整體配置上都沒有穩定變好（詳見 improve_test.md）。<br>完整報告：<a href="https://github.com/xsos32-design/stock-model/tree/main/results">GitHub</a></div></details>
   </div>
   <div class="warn">歷史回測不代表未來一定賺錢。本站不是投資建議，請自行判斷。資料來源：FinMind、證交所、櫃買中心。</div>
 </section>
@@ -164,7 +164,7 @@ async function load(){
   renderToday(); renderRecord(); taiexChart();
 }
 const WD='日一二三四五六';
-function nextTD(d){const x=new Date(d+'T00:00:00');do{x.setDate(x.getDate()+1)}while(x.getDay()%6===0);return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}
+function nextTD(d){if(T&&T.next_td){const x=new Date(T.next_td+'T00:00:00');return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}const x=new Date(d+'T00:00:00');do{x.setDate(x.getDate()+1)}while(x.getDay()%6===0);return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}
 function holdStatus(){const H=store('holds')||[];return H.map(h=>{const c=S.find(x=>x.id===h.id)||{},now=c.close,d=tdays(h.dt);
   return {...h,name:c.name||h.id,now,d,stop:now&&now<=h.px*0.9,due:d>=19}})}
 function renderToday(){
@@ -187,7 +187,8 @@ function renderToday(){
   else st.push(['wait','新股票：不買','觀察名單照常更新，等燈號變綠再買']);
   const keep=HS.filter(h=>!h.stop&&!h.due); if(keep.length)st.push(['wait',`其他 ${keep.length} 檔：繼續抱著`,keep.map(h=>`${h.name} 第${h.d}天`).join('、')+'。小跌不要賣']);
   if(!HS.length)st.push(['wait','記錄你手上的股票','到「我的股票」新增，網站才能提醒你什麼時候該賣']);
-  $('#todo').innerHTML=`<h2>步驟（由上往下做）</h2><ol class="steps">${st.map(([k,a,b])=>`<li class="${k}"><div class="act">${a}</div><div class="sub">${b}</div></li>`).join('')}</ol>
+  const W=(T.warn||[]);
+  $('#todo').innerHTML=(W.length?`<div class="warn" style="margin:0 0 10px">⚠ ${W.join('<br>⚠ ')}</div>`:'')+`<h2>步驟（由上往下做）</h2><ol class="steps">${st.map(([k,a,b])=>`<li class="${k}"><div class="act">${a}</div><div class="sub">${b}</div></li>`).join('')}</ol>
     <div class="mut" style="margin-top:6px">早上 06:40 會依昨晚美股再更新一次，下單前再看一眼。</div>`;
 
   // ---- what happened ----
@@ -212,7 +213,7 @@ function renderToday(){
    <div class="check"><span>個股（每檔 5 萬，最多 ${slots} 檔）</span><b>${sAmt.toLocaleString()} 元　${T.can_enter?'可買':'今天不買'}</b></div>
    <div class="check"><span>0050</span><b>${H50?Math.round(cap*0.49).toLocaleString()+' 元　持有':'0 元　換現金'}</b></div>
    <div class="check"><span>現金（含沒用到的）</span><b>${(cap-sAmt-(H50?Math.round(cap*0.49):0)).toLocaleString()} 元</b></div>
-   <div class="mut" style="margin-top:6px">回測 11 年：年化 +15.3%、最大虧損 −12.7%（已扣費稅，是過去成績不保證未來）</div>`;
+   <div class="mut" style="margin-top:6px">回測 11 年：年化約 +15%、最大虧損約 −13%（選股稍有不同時落在 −11%～−16%；已扣費稅，過去成績不保證未來）</div>`;
   $('#cap').onchange=e=>{const v=+e.target.value.replace(/\D/g,'');if(v>0){store('cap',v);renderToday();taiexChart()}};
 
   $('#asof').textContent=`資料：${T.date} 收盤・更新於 ${T.generated}（每天 18:10 與 06:40 自動更新）`;

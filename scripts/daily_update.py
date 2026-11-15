@@ -38,7 +38,8 @@ os.makedirs(f"{LIVE}/daily", exist_ok=True); os.makedirs(f"{LIVE}/history", exis
 base = pd.concat([pd.read_parquet(p) for p in sorted(glob.glob("data/price_adj/*.parquet"))])
 base["date"] = pd.to_datetime(base.date)
 taiex = base[base.stock_id == "TAIEX"][["date", "close"]]
-base = base[base.stock_id.str.fullmatch(r"[1-9]\d{3}")]
+SID = r"[1-9]\d{3}|00\d{2,4}[A-Z]?"   # common stocks + ETFs (ETFs: lookup/charts only, never signals)
+base = base[base.stock_id.str.fullmatch(SID)]
 base = base[base.date >= base.date.max() - pd.Timedelta(days=500)]
 adds = [pd.read_parquet(p) for p in sorted(glob.glob(f"{LIVE}/daily/*.parquet"))]
 px = pd.concat([base] + adds) if adds else base
@@ -62,14 +63,14 @@ rows = []
 tw = get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL") or []
 for x in tw:
     c = x.get("Code", "")
-    if re.fullmatch(r"[1-9]\d{3}", c):
+    if re.fullmatch(SID, c):
         rows.append(dict(date=roc(x["Date"]), stock_id=c, open=f(x["OpeningPrice"]), high=f(x["HighestPrice"]), low=f(x["LowestPrice"]),
                          close=f(x["ClosingPrice"]), volume=f(x["TradeVolume"]), value=f(x["TradeValue"])))
         name_of.setdefault(c, x.get("Name")); mkt_of.setdefault(c, "twse")
 tp = get("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes") or []
 for x in tp:
     c = x.get("SecuritiesCompanyCode", "")
-    if re.fullmatch(r"[1-9]\d{3}", c):
+    if re.fullmatch(SID, c):
         rows.append(dict(date=roc(x["Date"]), stock_id=c, open=f(x["Open"]), high=f(x["High"]), low=f(x["Low"]),
                          close=f(x["Close"]), volume=f(x["TradingShares"]), value=f(x["TransactionAmount"])))
         name_of.setdefault(c, x.get("CompanyName")); mkt_of.setdefault(c, "tpex")
@@ -211,7 +212,7 @@ for sid_, r in cur.iterrows():
                     yoy3=None if lr is None or lr.yoy3 != lr.yoy3 else round(float(lr.yoy3), 4),
                     rev_month=None if lr is None else f"{int(lr.revenue_year)}-{int(lr.revenue_month):02d}",
                     score=int(sum(facts.values())), factors=facts, checks=checks,
-                    signal=all(checks.values()), disposed=disposed.get(sid_), notice=notice.get(sid_)))
+                    etf=sid_.startswith("00"), signal=all(checks.values()) and not sid_.startswith("00"), disposed=disposed.get(sid_), notice=notice.get(sid_)))
 def clean(o):
     if isinstance(o, dict): return {k: clean(v) for k, v in o.items()}
     if isinstance(o, list): return [clean(v) for v in o]

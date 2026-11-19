@@ -337,8 +337,8 @@ async function initLive(){
 }
 async function runLive(){
   const b=$('#liveBtn');b.disabled=true;b.textContent='抓取中…（最多約 30 秒）';
-  const ids=Object.keys(IP.s);let Q={};
-  try{for(let i=0;i<ids.length;i+=400){let j;for(let k=0;k<3;k++){try{const r=await fetch(`${WORKER}/quote?ids=t00,${ids.slice(i,i+400).join(',')}`);j=await r.json();if(!j.error)break}catch(e){j={error:String(e)}}await new Promise(z=>setTimeout(z,1500))}if(j.error)throw j.error;Object.assign(Q,j.quotes)}}
+  const ids=Object.keys(IP.s);let Q={},SRC=new Set();const qid=id=>id+({tpex:'.TWO',twse:'.TW'}[IP.s[id][7]]||'');
+  try{for(let i=0;i<ids.length;i+=400){let j;for(let k=0;k<3;k++){try{const r=await fetch(`${WORKER}/quote?ids=t00,${ids.slice(i,i+400).map(qid).join(',')}`);j=await r.json();if(!j.error)break}catch(e){j={error:String(e)}}await new Promise(z=>setTimeout(z,1500))}if(j.error)throw j.error;SRC.add(j.source);Object.assign(Q,j.quotes)}}
   catch(e){$('#liveOut').innerHTML=`<div class="warn">抓不到即時價格：${e}</div>`;b.disabled=false;b.textContent='再試一次';return}
   const tx=Q.t00||{}, ma60=tx.last?(IP.taiex_sum59+tx.last)/60:null, mkt=tx.last&&tx.last>ma60;
   const usBad=(T.gate||[]).some(g=>g.includes('美股')||g.includes('費半')||g.includes('ADR')), big=!!(T.big||{}).low;
@@ -349,7 +349,7 @@ async function runLive(){
   L.sort((a,b)=>b.score-a.score||(b.r120??-9)-(a.r120??-9));
   const t=(Q[ids[0]]||tx).time||'';
   $('#liveOut').innerHTML=`<div class="light ${ok?'go':'stop'}" style="margin-top:10px"><div class="big" style="font-size:22px">${ok?'今天收盤可以買':'今天還是不買'}</div>
-    <div class="why">加權 ${tx.last?tx.last.toLocaleString():'—'}（60 日線約 ${ma60?Math.round(ma60).toLocaleString():'—'}）${mkt?'在線上':'在線下'}${usBad?'・昨晚美股大跌':''}${big?'・期貨大戶偏空':''}<br>報價時間 ${t}</div></div>`+
+    <div class="why">加權 ${tx.last?tx.last.toLocaleString():'—'}（60 日線約 ${ma60?Math.round(ma60).toLocaleString():'—'}）${mkt?'在線上':'在線下'}${usBad?'・昨晚美股大跌':''}${big?'・期貨大戶偏空':''}<br>報價時間 ${t}・${SRC.has('yahoo')?'來源 Yahoo（證交所暫時連不上，約延遲 20 分鐘）':'來源 證交所即時'}</div></div>`+
     (L.length?L.slice(0,10).map((c,i)=>{const sh=sharesFor(c.last);return `<div class="check"><span>${i+1}. <b>${c.name}</b> <span class="mut">${c.id}</span> <span class="stars">${stars(Math.min(5,c.score))}</span></span><span>${c.last} <span class="${cls(c.chg)}">${pct(c.chg)}</span>${ok?` <button class="btn sm" onclick="addHold('${c.id}',${c.last},${sh},tpeNow().date)">我買了</button>`:''}</span></div>`}).join('')
       +`<div class="mut" style="margin-top:6px">共 ${L.length} 檔符合。每檔約 5 萬、最多 10 檔；收盤價可能和現在略有不同。</div>`
       :'<div class="mut" style="margin-top:8px">目前沒有符合條件的股票。</div>');

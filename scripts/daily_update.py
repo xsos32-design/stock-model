@@ -264,9 +264,9 @@ for sid_, g_ in px[px.stock_id.str.fullmatch(r"[1-9]\d{3}")].groupby("stock_id")
     fx = next((x["factors"] for x in out if x["id"] == sid_), {})
     st0 = int(sum(bool(v) for k, v in fx.items() if not k.startswith("120")))
     ip[sid_] = [round(hi249, 2), round(v19), round(float(g_.close.iloc[-120]), 2) if len(g_) >= 120 else None, round(c, 2), st0,
-                1 if sid_ in disposed else 0, name_of.get(sid_, "")]
+                1 if sid_ in disposed else 0, name_of.get(sid_, ""), mkt_of.get(sid_, "")]
 json.dump(dict(date=today["date"], for_date=today["next_td"], taiex_sum59=round(float(tx.tail(59).sum()), 2),
-               cols=["hi249", "val19sum", "c119", "prev", "score_static", "disposed", "name"], s=ip),
+               cols=["hi249", "val19sum", "c119", "prev", "score_static", "disposed", "name", "mkt"], s=ip),
           open(f"{DOCS}/intraday.json", "w"), ensure_ascii=False, separators=(",", ":"))
 json.dump(clean(S.to_dict("records")), open(f"{DOCS}/stocks.json", "w"), ensure_ascii=False, default=str)
 json.dump(dict(date=today["date"], can_enter=today["can_enter"], mkt_up=mkt_up, gate=gate_reasons,

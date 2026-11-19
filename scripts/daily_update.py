@@ -249,6 +249,25 @@ today = dict(date=T.strftime("%Y-%m-%d"), next_td=nd.isoformat(), warn=warn, gen
              exit_est=exit_est, n_cand=len(cand), candidates=clean(cand.to_dict("records")),
              disposed=[{"id": k, "name": name_of.get(k, ""), "info": v} for k, v in disposed.items() if re.fullmatch(r"[1-9]\d{3}", str(k))])
 json.dump(today, open(f"{DOCS}/today.json", "w"), ensure_ascii=False, default=str)
+
+# ---------------- intraday pack: lets the website rebuild the signal at ~13:10 from live quotes ----------------
+# signal at today's close needs: max(high of previous 249 days, today's high) ; 20-day avg value incl. today ;
+# close 119 sessions ago (for 120-day return) ; static fundamentals ; TAIEX MA60 incl. today.
+ip = {}
+for sid_, g_ in px[px.stock_id.str.fullmatch(r"[1-9]\d{3}")].groupby("stock_id"):
+    g_ = g_.tail(250)
+    if len(g_) < 200: continue
+    hi249 = float(g_.high.tail(249).max()); c = float(g_.close.iloc[-1])
+    if c < 0.85 * hi249 or c < 9: continue          # too far from the 1-year high to qualify today
+    v19 = float(g_.value.tail(19).sum())
+    if v19 / 19 < 1e7: continue
+    fx = next((x["factors"] for x in out if x["id"] == sid_), {})
+    st0 = int(sum(bool(v) for k, v in fx.items() if not k.startswith("120")))
+    ip[sid_] = [round(hi249, 2), round(v19), round(float(g_.close.iloc[-120]), 2) if len(g_) >= 120 else None, round(c, 2), st0,
+                1 if sid_ in disposed else 0, name_of.get(sid_, "")]
+json.dump(dict(date=today["date"], for_date=today["next_td"], taiex_sum59=round(float(tx.tail(59).sum()), 2),
+               cols=["hi249", "val19sum", "c119", "prev", "score_static", "disposed", "name"], s=ip),
+          open(f"{DOCS}/intraday.json", "w"), ensure_ascii=False, separators=(",", ":"))
 json.dump(clean(S.to_dict("records")), open(f"{DOCS}/stocks.json", "w"), ensure_ascii=False, default=str)
 json.dump(dict(date=today["date"], can_enter=today["can_enter"], mkt_up=mkt_up, gate=gate_reasons,
                picks=[dict(id=x["id"], name=x["name"], close=x["close"], score=x["score"]) for x in cand.head(20).to_dict("records")]),

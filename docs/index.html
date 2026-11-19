@@ -336,9 +336,9 @@ async function initLive(){
   if(open)$('#liveBtn').onclick=runLive;
 }
 async function runLive(){
-  const b=$('#liveBtn');b.disabled=true;b.textContent='抓取中…';
+  const b=$('#liveBtn');b.disabled=true;b.textContent='抓取中…（最多約 30 秒）';
   const ids=Object.keys(IP.s);let Q={};
-  try{for(let i=0;i<ids.length;i+=400){const r=await fetch(`${WORKER}/quote?ids=t00,${ids.slice(i,i+400).join(',')}`);const j=await r.json();if(j.error)throw j.error;Object.assign(Q,j.quotes)}}
+  try{for(let i=0;i<ids.length;i+=400){let j;for(let k=0;k<3;k++){try{const r=await fetch(`${WORKER}/quote?ids=t00,${ids.slice(i,i+400).join(',')}`);j=await r.json();if(!j.error)break}catch(e){j={error:String(e)}}await new Promise(z=>setTimeout(z,1500))}if(j.error)throw j.error;Object.assign(Q,j.quotes)}}
   catch(e){$('#liveOut').innerHTML=`<div class="warn">抓不到即時價格：${e}</div>`;b.disabled=false;b.textContent='再試一次';return}
   const tx=Q.t00||{}, ma60=tx.last?(IP.taiex_sum59+tx.last)/60:null, mkt=tx.last&&tx.last>ma60;
   const usBad=(T.gate||[]).some(g=>g.includes('美股')||g.includes('費半')||g.includes('ADR')), big=!!(T.big||{}).low;

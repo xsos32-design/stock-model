@@ -73,6 +73,7 @@ details summary{cursor:pointer;color:var(--blue);font-size:15px}
   <div class="card" id="alloc"></div>
   <div class="card" style="padding:12px"><div class="mut">加權指數（藍）與 60 日均線（橘虛線）：藍線在橘線上面＝大盤安全</div><div id="tchart"></div></div>
   <div class="mut" id="asof" style="margin:8px 4px 12px"></div>
+  <div id="live"></div>
   <div id="picks"></div>
   <div id="more"></div>
 </section>
@@ -320,7 +321,41 @@ async function taiexChart(){
    $('#tchart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%">${ln(m,'#f5a524','stroke-dasharray="4 3"')}${ln(c,'var(--blue)')}<text x="2" y="${H-2}" font-size="9" fill="var(--mut)">${P.d[0]}</text><text x="${W-2}" y="${H-2}" font-size="9" fill="var(--mut)" text-anchor="end">${P.d[n-1]}</text></svg>`}catch(e){}
 }
 function toggleChart(btn,id){const el=btn.nextElementSibling;if(el.innerHTML){el.innerHTML='';btn.textContent='看走勢圖';return}btn.textContent='收起走勢圖';stockChart(el,id)}
-load();
+
+// ---------- intraday (13:10) list via Cloudflare worker ----------
+const WORKER='https://stock-model.xsos32.workers.dev';
+let IP=null;
+function tpeNow(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());const g=k=>p.find(x=>x.type===k).value;return {date:`${g('year')}-${g('month')}-${g('day')}`,hm:+g('hour')*60+ +g('minute')}}
+async function initLive(){
+  try{IP=await (await fetch('data/intraday.json?t='+Date.now())).json()}catch(e){return}
+  const n=tpeNow(); if(!IP||IP.for_date!==n.date)return;
+  const open=n.hm>=9*60&&n.hm<=13*60+35;
+  $('#live').innerHTML=`<div class="card" style="border:2px solid var(--blue)"><h2>今天收盤前要買的名單（盤中即時）</h2>
+    <div class="mut">13:10 以後按一次，用即時價格算出「今天收盤會符合條件」的股票，13:25～13:30 下單。比照收盤後名單隔天才買，回測每年多約 1.9%。</div>
+    <button class="btn" id="liveBtn" ${open?'':'disabled'}>${open?'抓即時價格，算今天名單':'盤中（09:00～13:30）才能用'}</button><div id="liveOut"></div></div>`;
+  if(open)$('#liveBtn').onclick=runLive;
+}
+async function runLive(){
+  const b=$('#liveBtn');b.disabled=true;b.textContent='抓取中…';
+  const ids=Object.keys(IP.s);let Q={};
+  try{for(let i=0;i<ids.length;i+=400){const r=await fetch(`${WORKER}/quote?ids=t00,${ids.slice(i,i+400).join(',')}`);const j=await r.json();if(j.error)throw j.error;Object.assign(Q,j.quotes)}}
+  catch(e){$('#liveOut').innerHTML=`<div class="warn">抓不到即時價格：${e}</div>`;b.disabled=false;b.textContent='再試一次';return}
+  const tx=Q.t00||{}, ma60=tx.last?(IP.taiex_sum59+tx.last)/60:null, mkt=tx.last&&tx.last>ma60;
+  const usBad=(T.gate||[]).some(g=>g.includes('美股')||g.includes('費半')||g.includes('ADR')), big=!!(T.big||{}).low;
+  const ok=mkt&&!usBad&&!big, L=[];
+  for(const id of ids){const q=Q[id];if(!q||!q.last)continue;const [hi249,v19,c119,prev,s0,disp,name]=IP.s[id];
+    const hi=Math.max(hi249,q.high||0), val20=(v19+(q.vol||0)*1000*q.last)/20, r120=c119?q.last/c119-1:null;
+    if(q.last>=0.98*hi&&val20>=2e7&&q.last>=10&&q.last<prev*1.095&&!disp)L.push({id,name:name||q.name,last:q.last,chg:prev?q.last/prev-1:0,r120,score:s0+(r120>0.3?1:0)})}
+  L.sort((a,b)=>b.score-a.score||(b.r120??-9)-(a.r120??-9));
+  const t=(Q[ids[0]]||tx).time||'';
+  $('#liveOut').innerHTML=`<div class="light ${ok?'go':'stop'}" style="margin-top:10px"><div class="big" style="font-size:22px">${ok?'今天收盤可以買':'今天還是不買'}</div>
+    <div class="why">加權 ${tx.last?tx.last.toLocaleString():'—'}（60 日線約 ${ma60?Math.round(ma60).toLocaleString():'—'}）${mkt?'在線上':'在線下'}${usBad?'・昨晚美股大跌':''}${big?'・期貨大戶偏空':''}<br>報價時間 ${t}</div></div>`+
+    (L.length?L.slice(0,10).map((c,i)=>{const sh=sharesFor(c.last);return `<div class="check"><span>${i+1}. <b>${c.name}</b> <span class="mut">${c.id}</span> <span class="stars">${stars(Math.min(5,c.score))}</span></span><span>${c.last} <span class="${cls(c.chg)}">${pct(c.chg)}</span>${ok?` <button class="btn sm" onclick="addHold('${c.id}',${c.last},${sh},tpeNow().date)">我買了</button>`:''}</span></div>`}).join('')
+      +`<div class="mut" style="margin-top:6px">共 ${L.length} 檔符合。每檔約 5 萬、最多 10 檔；收盤價可能和現在略有不同。</div>`
+      :'<div class="mut" style="margin-top:8px">目前沒有符合條件的股票。</div>');
+  b.disabled=false;b.textContent='重新抓取';
+}
+load().then(initLive);
 </script>
 </body>
 </html>

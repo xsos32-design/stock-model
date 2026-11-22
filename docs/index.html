@@ -168,14 +168,16 @@ const WD='日一二三四五六';
 function nextTD(d){if(T&&T.next_td){const x=new Date(T.next_td+'T00:00:00');return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}const x=new Date(d+'T00:00:00');do{x.setDate(x.getDate()+1)}while(x.getDay()%6===0);return `${x.getMonth()+1}/${x.getDate()}（${WD[x.getDay()]}）`}
 function holdStatus(){const H=store('holds')||[];return H.map(h=>{const c=S.find(x=>x.id===h.id)||{},now=c.close,d=tdays(h.dt);
   return {...h,name:c.name||h.id,now,d,stop:now&&now<=h.px*0.9,due:d>=19}})}
+function tpeTime(g){const d=new Date((g||'').replace(' UTC','Z').replace(' ','T'));if(isNaN(d))return g||'—';const p=new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);return p}
 function renderToday(){
   const t=T.taiex, gap=t.close/t.ma60-1, us=T.us||{}, sox=us['費半SOX'], tsm=us['台積電ADR'], big=T.big||{};
   const H50=(T.etf_hold===undefined)?T.mkt_up:T.etf_hold, day=nextTD(T.date);
   const usBad=(sox&&sox.chg<=-0.03)||(tsm&&tsm.chg<=-0.02), bigBad=!!big.low;
   const why=[]; if(!T.mkt_up)why.push('大盤跌破 60 日線'); if(usBad)why.push('昨晚美股大跌'); if(bigBad)why.push('期貨大戶偏空');
+  const UPD=tpeTime(T.generated), STAMP=`<div style="font-size:13px;opacity:.85;margin-top:8px">🕒 更新於 ${UPD}・${T.date.slice(5).replace('-','/')} 收盤資料</div>`;
   $('#light').innerHTML=T.can_enter
-    ?`<div class="light go"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">可以買新股票</div><div class="why">照下面步驟做，13:25～13:30 下單</div></div>`
-    :`<div class="light stop"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">不買新股票</div><div class="why">原因：${why.join('、')}<br>手上股票照規則處理就好（看下面步驟）</div></div>`;
+    ?`<div class="light go"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">可以買新股票</div><div class="why">照下面步驟做，13:25～13:30 下單</div>${STAMP}</div>`
+    :`<div class="light stop"><div class="mut" style="color:#fff;opacity:.85">${day} 要做的事</div><div class="big">不買新股票</div><div class="why">原因：${why.join('、')}<br>手上股票照規則處理就好（看下面步驟）</div>${STAMP}</div>`;
 
   // ---- to-do list ----
   const st=[], HS=holdStatus();
@@ -217,7 +219,7 @@ function renderToday(){
    <div class="mut" style="margin-top:6px">回測 11 年：年化約 +15%、最大虧損約 −13%（選股稍有不同時落在 −11%～−16%；已扣費稅，過去成績不保證未來）</div>`;
   $('#cap').onchange=e=>{const v=+e.target.value.replace(/\D/g,'');if(v>0){store('cap',v);renderToday();taiexChart()}};
 
-  $('#asof').textContent=`資料：${T.date} 收盤・更新於 ${T.generated}（每天 18:10 與 06:40 自動更新）`;
+  $('#asof').textContent=`資料：${T.date} 收盤・更新於 ${tpeTime(T.generated)}（台北時間；每個交易日 18:15 與 06:30 自動更新）`;
   const L=T.candidates, top=L.slice(0,5);
   $('#picks').innerHTML=(T.can_enter?'<h2 style="margin:4px 4px 10px">今天推薦（由上往下買）</h2>':'<h2 style="margin:4px 4px 10px">觀察名單（今天不買，先看看）</h2>')+
     (top.map((c,i)=>pickCard(c,i)).join('')||'<div class="card mut">今天沒有符合條件的股票</div>');

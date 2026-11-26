@@ -46,7 +46,8 @@ print("universe", len(ids), flush=True)
 
 # ---- trading days ----
 td, _ = call("TaiwanStockTradingDate", start_date=(pd.Timestamp.today() - pd.Timedelta(days=DAYS * 2)).strftime("%Y-%m-%d"))
-days = [d["date"] for d in td if d["date"] <= pd.Timestamp.today().strftime("%Y-%m-%d")][-DAYS:]
+today_tpe = (pd.Timestamp.utcnow() + pd.Timedelta(hours=8)).strftime("%Y-%m-%d")
+days = [d["date"] for d in td if d["date"] < today_tpe][-DAYS:]   # never today: ticks appear only after the close
 time.sleep(GAP)
 
 # ---- probe ----
@@ -80,7 +81,7 @@ for sid in ids:
     have = set(pd.read_parquet(fp).ts.dt.strftime("%Y-%m-%d")) if os.path.exists(fp) else set()
     need = [d for d in days if d not in have]
     if not need: continue
-    if done_runs >= CHUNK: break
+    if done_runs >= CHUNK and len(need) > 3: break
     frames = [pd.read_parquet(fp)] if have else []
     for d in need:
         rows, msg = call("TaiwanStockPriceTick", data_id=sid, start_date=d)
@@ -91,7 +92,7 @@ for sid in ids:
         df = pd.concat(frames).drop_duplicates("ts").sort_values("ts")
         for c in ["o", "h", "l", "c"]: df[c] = df[c].astype("float32")
         df.to_parquet(fp, index=False, compression="zstd")
-    done_runs += 1
+    if len(need) > 3: done_runs += 1   # small top-ups (1-3 new days) do not use up the per-run budget
     print("done", sid, len(need), "days", flush=True)
 left = sum(1 for s in ids if not os.path.exists(f"{OUT}/{s}.parquet"))
 json.dump(dict(ids=len(ids), files=len(glob.glob(f"{OUT}/[0-9]*.parquet")), left=left, days=len(days), first=days[0], last=days[-1]),

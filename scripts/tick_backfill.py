@@ -39,7 +39,8 @@ px["date"] = pd.to_datetime(px.date)
 v = px[px.date >= px.date.max() - pd.Timedelta(days=40)].groupby("stock_id").value.mean().rename("v").reset_index()
 v = v.merge(uni[["stock_id", "industry_category"]].drop_duplicates("stock_id"), on="stock_id", how="left")
 top_ind = v.sort_values("v", ascending=False).groupby("industry_category").head(10)
-ids = sorted(set(top_ind.stock_id) | set(v.nlargest(50, "v").stock_id))
+pool = set(top_ind.stock_id) | set(v.nlargest(50, "v").stock_id)
+ids = list(v[v.stock_id.isin(pool)].sort_values("v", ascending=False).stock_id.head(int(os.environ.get("MAXN", "180"))))   # most traded first
 json.dump(ids, open(f"{OUT}/universe.json", "w"))
 print("universe", len(ids), flush=True)
 

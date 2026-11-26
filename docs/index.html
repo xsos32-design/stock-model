@@ -234,25 +234,45 @@ function pickCard(c,i){
   <button class="btn ghost" onclick="toggleChart(this,'${c.id}')">看走勢圖</button><div></div>
   ${T.can_enter?`<button class="btn" onclick="addHold('${c.id}',${c.close},${sh})">我買了</button>`:''}</div>`;
 }
-function addHold(id,px,sh,dt){const H=store('holds')||[];H.push({id,px,sh,dt:dt||T.date});store('holds',H);
+function addHold(id,px,sh,dt){const H=store('holds')||[];const nm=(S.find(x=>x.id===id)||{}).name||(NAMES||{})[id]||'';H.push({id,px,sh,dt:dt||T.date,name:nm});store('holds',H);
   const b=event&&event.target;if(b){b.textContent='已加入「我的股票」';b.disabled=true;b.classList.add('ghost')}setTimeout(()=>{const y=scrollY;renderToday();scrollTo(0,y)},800)}
 $('#aAdd').onclick=()=>{const id=$('#aId').value.trim(),px=+$('#aPx').value;if(!id||!px)return alert('請填代號和買進價');
   addHold(id,px,+$('#aSh').value||sharesFor(px),$('#aDt').value||T.date);$('#aId').value=$('#aPx').value=$('#aSh').value='';renderMine()};
 function tdays(d){let n=0,x=new Date(d),e=new Date(T.date);while(x<e){x.setDate(x.getDate()+1);if(x.getDay()%6)n++}return n}
 function addBD(d,k){let x=new Date(d);while(k>0){x.setDate(x.getDate()+1);if(x.getDay()%6)k--}return (x.getMonth()+1)+'/'+x.getDate()}
-function renderMine(){
-  const H=store('holds')||[];let tot=0,cost=0;
-  $('#mineList').innerHTML=H.map((h,i)=>{const c=S.find(x=>x.id===h.id)||{},now=c.close,
-    buy=h.px*h.sh,bf=Math.max(20,Math.floor(buy*FEE)),sell=(now||h.px)*h.sh,sf=Math.max(20,Math.floor(sell*FEE)),tx=Math.floor(sell*TAX),
-    net=sell-sf-tx-buy-bf,d=Math.min(tdays(h.dt),20),left=20-d;tot+=net;cost+=buy+bf;
-    return `<div class="card"><div class="pick"><div><span class="name">${c.name||h.id}</span><span class="code">${h.id}</span><div class="mut">${h.px} → ${now??'—'}・${lots(h.sh)}</div></div>
-    <div class="pl ${cls(net)}">${money(net)}</div></div>
-    <div class="bar"><i style="width:${d/20*100}%"></i></div>
-    ${now&&now<=h.px*0.9?'<div class="warn">已跌超過 10%：依規則停損賣出</div>':''}
-    <div class="pick"><span class="mut">${left>0?`還要抱 ${left} 天（約 ${addBD(h.dt,20)}）`:'<b class="up">已滿 20 天，今天收盤前賣出</b>'}</span><button class="btn sm ghost" onclick="delHold(${i})">刪除</button></div>
-    <button class="btn ghost" onclick="toggleChart(this,'${h.id}')">看走勢圖</button><div></div></div>`}).join('')
-    ||'<div class="card mut">還沒有股票。在「今天」按「我買了」就會出現在這裡。</div>';
-  $('#mineSum').innerHTML=H.length?`<div class="mut">目前總損益（已扣手續費、稅）</div><div class="pl ${cls(tot)}">${money(tot)}</div><div class="mut">投入約 ${Math.round(cost).toLocaleString()} 元・報酬 ${pct(tot/cost)}</div>`:'<h2>我的股票</h2><div class="mut">資料只存在這支手機，不會上傳。</div>';
+let NAMES=null, LIVEQ={}, LIVEAT='';
+async function ensureNames(){if(NAMES)return;try{NAMES=await (await fetch('data/names.json?t='+(T?T.generated:'')).json())}catch(e){NAMES={}}}
+async function lastPx(id){try{const P=await getPx(id);const n=P.c.length;return {close:P.c[n-1],prev:P.c[n-2],d:P.d[n-1]}}catch(e){return {}}}
+async function refreshLive(ids){const n=tpeNow();if(!(n.hm>=9*60&&n.hm<=13*60+35)||!ids.length)return;
+  try{const r=await fetch(`${WORKER}/quote?ids=${ids.join(',')}`);const j=await r.json();if(!j.error){LIVEQ=j.quotes;LIVEAT=Object.values(j.quotes)[0]?.time||''}}catch(e){}}
+async function renderMine(){
+  const H=store('holds')||[];
+  if(!H.length){$('#mineSum').innerHTML='<h2>我的股票</h2><div class="mut">資料只存在這支手機，不會上傳。</div>';$('#mineList').innerHTML='<div class="card mut">還沒有股票。在「今天」按「我買了」或下面手動新增。</div>';return}
+  await ensureNames(); await refreshLive([...new Set(H.map(h=>h.id))]);
+  let tot=0,cost=0,todo=0;const cards=[];
+  for(const [i,h] of H.entries()){
+    const c=S.find(x=>x.id===h.id)||{}, lp=c.close?{}:await lastPx(h.id), q=LIVEQ[h.id];
+    const name=h.name||c.name||NAMES[h.id]||(q&&q.name)||'';
+    const now=q&&q.last?q.last:(c.close??lp.close), prev=q&&q.prev?q.prev:(lp.prev??null);
+    const dayChg=q&&q.last&&q.prev?q.last/q.prev-1:(prev&&now?now/prev-1:null);
+    const buy=h.px*h.sh,bf=Math.max(20,Math.floor(buy*FEE)),sell=(now||h.px)*h.sh,sf=Math.max(20,Math.floor(sell*FEE)),tx=Math.floor(sell*TAX);
+    const net=sell-sf-tx-buy-bf, d=Math.min(tdays(h.dt),20), left=20-d, stopPx=+(h.px*0.9).toFixed(2);
+    tot+=net;cost+=buy+bf;
+    const stop=now&&now<=stopPx, due=left<=0;
+    const badge=stop?'<span class="tag" style="background:var(--red);color:#fff">停損：開盤賣</span>':due?'<span class="tag" style="background:var(--red);color:#fff">今天收盤前賣</span>':'<span class="tag">持有中</span>';
+    if(stop||due)todo++;
+    cards.push(`<div class="card"><div class="pick"><div><span class="name">${name||h.id}</span><span class="code">${h.id}</span> ${badge}</div>
+      <div style="text-align:right"><div class="pl ${cls(net)}" style="font-size:22px">${money(net)}</div><div class="${cls(net)}" style="font-size:14px">${pct(net/(buy+bf))}</div></div></div>
+      <div class="check"><span>現價${q&&q.last?`（即時 ${LIVEAT.slice(0,5)}）`:''}</span><b>${now??'—'} <span class="${cls(dayChg)}" style="font-size:14px">${dayChg==null?'':'今日 '+pct(dayChg)}</span></b></div>
+      <div class="check"><span>買進價・股數</span><b>${h.px}・${lots(h.sh)}</b></div>
+      <div class="check"><span>停損價（跌 10%）</span><b>${stopPx}${now?` <span class="mut" style="font-size:13px">還差 ${pct(stopPx/now-1)}</span>`:''}</b></div>
+      <div class="check"><span>預計賣出</span><b>${addBD(h.dt,20)}${left>0?`（剩 ${left} 個交易日）`:'（已到期）'}</b></div>
+      <div class="bar"><i style="width:${d/20*100}%"></i></div>
+      <div class="row" style="margin-top:6px"><button class="btn ghost" style="margin:0" onclick="toggleChart(this,'${h.id}')">看走勢圖</button><div style="flex:0 0 0"></div><button class="btn sm ghost" style="flex:0 0 auto" onclick="delHold(${i})">刪除</button></div><div></div></div>`)}
+  $('#mineList').innerHTML=cards.join('');
+  $('#mineSum').innerHTML=`<div class="mut">目前總損益（已扣手續費、稅）${LIVEAT?'・即時':''}</div><div class="pl ${cls(tot)}">${money(tot)}</div>
+    <div class="mut">共 ${H.length} 檔・投入約 ${Math.round(cost).toLocaleString()} 元・報酬 ${pct(tot/cost)}</div>
+    ${todo?`<div class="warn">今天有 ${todo} 檔要賣（看紅色標籤）</div>`:'<div class="mut" style="margin-top:4px">今天沒有要賣的股票，照常抱著。</div>'}`;
 }
 function delHold(i){if(!confirm('刪除這筆？'))return;const H=store('holds')||[];H.splice(i,1);store('holds',H);renderMine()}
 function lookup(){

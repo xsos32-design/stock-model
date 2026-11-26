@@ -78,7 +78,10 @@ new = pd.DataFrame(rows).dropna(subset=["date", "close"])
 new = new[new.close > 0]
 if len(new):
     for d, g_ in new.groupby("date"):
-        g_.to_parquet(f"{LIVE}/daily/{d:%Y-%m-%d}.parquet", index=False)
+        fp = f"{LIVE}/daily/{d:%Y-%m-%d}.parquet"
+        if os.path.exists(fp):   # merge: one market's API can fail on a later run; never drop rows already saved
+            g_ = pd.concat([pd.read_parquet(fp), g_]).drop_duplicates(["date", "stock_id"], keep="last")
+        g_.to_parquet(fp, index=False)
     px = pd.concat([px[~px.date.isin(new.date.unique())], new]).drop_duplicates(["date", "stock_id"], keep="last")
 
 mi = get("https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX") or []
@@ -168,7 +171,9 @@ px["val20"] = g.value.transform(lambda s: s.rolling(20).mean())
 px["ma20"] = g.close.transform(lambda s: s.rolling(20).mean())
 px["prevc"] = g.close.shift(1)
 px["r120"] = g.close.pct_change(120); px["r20"] = g.close.pct_change(20)
-T = px.date.max(); cur = px[px.date == T].set_index("stock_id")
+cnt = px[px.stock_id.str.fullmatch(r"[1-9]\d{3}")].groupby("date").size()
+T = cnt[cnt >= 0.8 * cnt.tail(10).max()].index.max()   # latest day with (nearly) all stocks, so a half-loaded day is skipped
+cur = px[px.date == T].set_index("stock_id")
 tdates = np.sort(px.date.unique())
 tx = taiex.set_index("date").close; ma60 = tx.rolling(60).mean()
 mkt_up = bool(tx.iloc[-1] > ma60.iloc[-1])
@@ -249,6 +254,7 @@ today = dict(date=T.strftime("%Y-%m-%d"), next_td=nd.isoformat(), warn=warn, gen
              exit_est=exit_est, n_cand=len(cand), candidates=clean(cand.to_dict("records")),
              disposed=[{"id": k, "name": name_of.get(k, ""), "info": v} for k, v in disposed.items() if re.fullmatch(r"[1-9]\d{3}", str(k))])
 json.dump(today, open(f"{DOCS}/today.json", "w"), ensure_ascii=False, default=str)
+json.dump({k: v for k, v in name_of.items() if isinstance(k, str) and re.fullmatch(SID, k) and v}, open(f"{DOCS}/names.json", "w"), ensure_ascii=False, separators=(",", ":"))
 
 # ---------------- intraday pack: lets the website rebuild the signal at ~13:10 from live quotes ----------------
 # signal at today's close needs: max(high of previous 249 days, today's high) ; 20-day avg value incl. today ;
